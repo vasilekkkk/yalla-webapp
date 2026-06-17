@@ -281,7 +281,26 @@
     <div style="font-size:15px; color:var(--navy); opacity:0.8; text-align:center;">выбраться в город — не одному</div>
   </div>
 
-  <!-- ONBOARDING -->
+  <!-- LONG TEST (temperament / communication style) -->
+  <div id="screen-long-test" class="screen">
+    <div class="progress" id="long-test-progress"></div>
+    <div id="long-test-steps"></div>
+    <div class="top-spacer"></div>
+    <button class="btn-primary" id="long-test-next" disabled onclick="longTestNext()">Далее</button>
+  </div>
+
+  <!-- RESULT -->
+  <div id="screen-result" class="screen">
+    <div class="result-emoji" id="result-emoji"></div>
+    <div class="result-name" id="result-name"></div>
+    <div class="result-desc" id="result-desc"></div>
+    <div class="result-actions">
+      <button class="btn-primary" id="result-btn-short" onclick="goToShortTest()">Пройти короткий тест</button>
+      <button class="btn-secondary" onclick="goToAllPlaces()">Смотреть все места</button>
+    </div>
+  </div>
+
+  <!-- SHORT TEST (place/route preferences) -->
   <div id="screen-onboarding" class="screen">
     <div class="progress" id="onboarding-progress">
       <div class="seg" data-step="1"></div>
@@ -305,7 +324,7 @@
         <button class="option-btn" data-value="расслабиться">Расслабиться</button>
         <button class="option-btn" data-value="отдохнуть">Отдохнуть</button>
         <button class="option-btn" data-value="адреналин">Адреналин</button>
-        <button class="option-btn" data-value="весело">Весело</button>
+        <button class="option-btn" data-value="весело">Весело провести время</button>
       </div>
     </div>
 
@@ -335,15 +354,9 @@
     <button class="btn-primary" id="onboarding-next" disabled onclick="onboardingNext()">Далее</button>
   </div>
 
-  <!-- RESULT -->
-  <div id="screen-result" class="screen">
-    <div class="result-emoji" id="result-emoji"></div>
-    <div class="result-name" id="result-name"></div>
-    <div class="result-desc" id="result-desc"></div>
-    <div class="result-actions">
-      <button class="btn-primary" id="result-btn-place" onclick="finishOnboarding('screen-places')">Найти место</button>
-      <button class="btn-secondary" onclick="finishOnboarding('screen-routes')">Смотреть маршруты</button>
-    </div>
+  <!-- ALL PLACES (browsable gallery) -->
+  <div id="screen-all-places" class="screen">
+    <div id="all-places-container"></div>
   </div>
 
   <!-- HOME -->
@@ -454,10 +467,10 @@ const ROUTES = [
 ]
 
 const TYPES = {
-  sanguine:    { name:'Сангвиник',  color:'#378ADD', bg:'#E6F1FB', emoji:'☀️', desc:'Открытый, лёгкий на подъём. Тебе нужны места с энергией.' },
-  phlegmatic:  { name:'Флегматик',  color:'#EF9F27', bg:'#FAEEDA', emoji:'🍂', desc:'Спокойный, вдумчивый. Ценишь комфорт и атмосферные места.' },
-  melancholic: { name:'Меланхолик', color:'#7F77DD', bg:'#EEEDFE', emoji:'🌙', desc:'Глубокий, чувствительный. Любишь места со смыслом.' },
-  choleric:    { name:'Холерик',    color:'#639922', bg:'#EAF3DE', emoji:'⚡', desc:'Энергичный, инициативный. Хочешь новых впечатлений.' },
+  sanguine:    { name:'Сангвиник',  color:'#0E3878', bg:'#8ED4D3', accent:'#F8D16C', emoji:'☀️', desc:'Открытый, лёгкий на подъём. Тебе нужны места с энергией.' },
+  phlegmatic:  { name:'Флегматик',  color:'#DA5330', bg:'#F6A894', accent:'#C19DCB', emoji:'🍂', desc:'Спокойный, вдумчивый. Ценишь комфорт и атмосферные места.' },
+  melancholic: { name:'Меланхолик', color:'#8B39A2', bg:'#C19DCB', accent:'#8ED4D3', emoji:'🌙', desc:'Глубокий, чувствительный. Любишь места со смыслом.' },
+  choleric:    { name:'Холерик',    color:'#0A5548', bg:'#45A695', accent:'#F8A796', emoji:'⚡', desc:'Энергичный, инициативный. Хочешь новых впечатлений.' },
 }
 
 /* ---------- STORAGE ---------- */
@@ -473,9 +486,133 @@ function load(key, fallback) {
   } catch { return fallback }
 }
 
+/* ---------- LONG TEST (temperament / communication style) ---------- */
+
+const LONG_TEST = [
+  { axis:'energy', title:'Как ты обычно чувствуешь себя в новой компании?', options:[
+    { label:'Стараюсь держаться в стороне', score:-2 },
+    { label:'Сначала присматриваюсь', score:-1 },
+    { label:'Быстро включаюсь в разговор', score:1 },
+    { label:'Сразу в центре внимания', score:2 },
+  ]},
+  { axis:'energy', title:'После шумной встречи с людьми ты:', options:[
+    { label:'Чувствую, что вымотался, хочу побыть один', score:-2 },
+    { label:'Немного устаю, но это нормально', score:-1 },
+    { label:'Чувствую прилив энергии', score:1 },
+    { label:'Хочу продолжения вечера', score:2 },
+  ]},
+  { axis:'spontaneity', title:'Если планы срываются в последний момент, ты:', options:[
+    { label:'Расстроюсь, я люблю чёткий план', score:-2 },
+    { label:'Немного выбьюсь из колеи, но привыкну', score:-1 },
+    { label:'Легко перестроюсь', score:1 },
+    { label:'Это даже веселее, чем план', score:2 },
+  ]},
+  { axis:'spontaneity', title:'Как ты планируешь поездку или встречу?', options:[
+    { label:'Расписываю всё заранее по пунктам', score:-2 },
+    { label:'Намечаю общий план', score:-1 },
+    { label:'Знаю только направление', score:1 },
+    { label:'Решаю на месте', score:2 },
+  ]},
+  { axis:'pace', title:'Как ты обычно общаешься?', options:[
+    { label:'Медленно, вдумчиво, с паузами', score:-2 },
+    { label:'Спокойно, без спешки', score:-1 },
+    { label:'Живо, быстро реагирую', score:1 },
+    { label:'Очень быстро, перебиваю от азарта', score:2 },
+  ]},
+  { axis:'pace', title:'В разговоре с друзьями ты чаще:', options:[
+    { label:'Слушаю и обдумываю', score:-2 },
+    { label:'Включаюсь, когда есть что сказать', score:-1 },
+    { label:'Активно поддерживаю темп', score:1 },
+    { label:'Веду разговор сам', score:2 },
+  ]},
+  { axis:'directness', title:'Если не согласен с другом, ты:', options:[
+    { label:'Промолчу, чтобы не портить настроение', score:-2 },
+    { label:'Аккуратно намекну на своё мнение', score:-1 },
+    { label:'Прямо скажу, что думаю', score:1 },
+    { label:'Сразу и без церемоний выскажусь', score:2 },
+  ]},
+  { axis:'directness', title:'В споре ты обычно:', options:[
+    { label:'Стараюсь сгладить углы', score:-2 },
+    { label:'Ищу компромисс', score:-1 },
+    { label:'Отстаиваю свою позицию', score:1 },
+    { label:'Иду до конца, пока не докажу своё', score:2 },
+  ]},
+  { axis:'emotion', title:'Как ты выражаешь радость?', options:[
+    { label:'Сдержанно, внутри себя', score:-2 },
+    { label:'Лёгкой улыбкой', score:-1 },
+    { label:'Открыто, заметно для других', score:1 },
+    { label:'Ярко, эмоционально, в полный голос', score:2 },
+  ]},
+]
+
+let longTestStep = 0
+const longTestAnswers = []
+
+function renderLongTestStep() {
+  const q = LONG_TEST[longTestStep]
+  const progress = document.getElementById('long-test-progress')
+  progress.innerHTML = LONG_TEST.map((_, i) =>
+    `<div class="seg${i <= longTestStep ? ' filled' : ''}"></div>`
+  ).join('')
+
+  const stepsEl = document.getElementById('long-test-steps')
+  stepsEl.innerHTML = `
+    <div class="question-title">${q.title}</div>
+    <div class="options">
+      ${q.options.map((o, i) => `<button class="option-btn" data-index="${i}">${o.label}</button>`).join('')}
+    </div>
+  `
+  stepsEl.querySelectorAll('.option-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      stepsEl.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+      btn.classList.add('selected')
+      longTestAnswers[longTestStep] = q.options[parseInt(btn.dataset.index)].score
+      document.getElementById('long-test-next').disabled = false
+    })
+  })
+  document.getElementById('long-test-next').disabled = longTestAnswers[longTestStep] === undefined
+}
+
+function longTestNext() {
+  if (longTestStep < LONG_TEST.length - 1) {
+    longTestStep++
+    renderLongTestStep()
+  } else {
+    const axisScores = { energy:0, spontaneity:0, pace:0, directness:0, emotion:0 }
+    LONG_TEST.forEach((q, i) => { axisScores[q.axis] += longTestAnswers[i] })
+
+    const scoreSanguine = axisScores.energy + axisScores.spontaneity
+    const scorePhlegmatic = -axisScores.energy - axisScores.pace
+    const scoreMelancholic = -axisScores.energy + axisScores.emotion
+    const scoreCholeric = axisScores.directness + axisScores.pace
+
+    const ranked = [
+      ['sanguine', scoreSanguine],
+      ['phlegmatic', scorePhlegmatic],
+      ['melancholic', scoreMelancholic],
+      ['choleric', scoreCholeric],
+    ].sort((a, b) => b[1] - a[1])
+    const temperament = ranked[0][0]
+
+    const profile = load('profile', {})
+    profile.temperament = temperament
+    profile.axisScores = axisScores
+    save('profile', profile)
+    showResult(temperament)
+  }
+}
+
+function startLongTest() {
+  longTestStep = 0
+  longTestAnswers.length = 0
+  showScreen('screen-long-test')
+  renderLongTestStep()
+}
+
 /* ---------- TEMPERAMENT ---------- */
 
 function getTemperament(profile) {
+  if (profile.temperament) return profile.temperament
   if (profile.goal === 'адреналин') return 'choleric'
   if (profile.mood === 'грустный' && profile.goal === 'расслабиться') return 'melancholic'
   if (profile.mood === 'весёлый' && profile.goal === 'весело') return 'sanguine'
@@ -537,27 +674,36 @@ function onboardingNext() {
     const q = stepEl.querySelector('.options').dataset.question
     document.getElementById('onboarding-next').disabled = !answers[q]
   } else {
-    const profile = {
-      mood: answers.mood,
-      goal: answers.goal,
-      format: answers.format,
-      time: answers.time,
-      onboarding_done: true
-    }
+    const profile = load('profile', {})
+    profile.mood = answers.mood
+    profile.goal = answers.goal
+    profile.format = answers.format
+    profile.time = answers.time
+    profile.onboarding_done = true
     save('profile', profile)
-    showResult(profile)
+    finishOnboarding('screen-places')
   }
 }
 
-function showResult(profile) {
-  const type = getTemperament(profile)
-  const t = TYPES[type]
+function showResult(temperament) {
+  const t = TYPES[temperament]
   document.getElementById('screen-result').style.background = t.bg
   document.getElementById('result-emoji').textContent = t.emoji
   document.getElementById('result-name').textContent = t.name
   document.getElementById('result-desc').textContent = t.desc
-  document.getElementById('result-btn-place').style.background = t.color
+  document.getElementById('result-btn-short').style.background = t.color
   showScreen('screen-result')
+}
+
+function goToShortTest() {
+  showScreen('screen-onboarding')
+}
+
+function goToAllPlaces() {
+  document.getElementById('bottom-nav').style.display = 'flex'
+  renderAllPlaces()
+  showScreen('screen-all-places')
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'))
 }
 
 function finishOnboarding(targetScreen) {
@@ -644,6 +790,42 @@ function showToast(text) {
   toastTimer = setTimeout(() => toast.classList.remove('show'), 2000)
 }
 
+/* ---------- ALL PLACES GALLERY ---------- */
+
+let allPlacesFormat = ''
+
+function renderAllPlaces() {
+  const formats = [...new Set(PLACES.map(p => p.format))]
+  const filtered = allPlacesFormat ? PLACES.filter(p => p.format === allPlacesFormat) : PLACES
+
+  const filtersHtml = `
+    <button class="option-btn${allPlacesFormat === '' ? ' selected' : ''}" style="display:inline-block; width:auto; margin:0 6px 6px 0; padding:8px 14px;" onclick="setAllPlacesFilter('')">Все</button>
+    ${formats.map(f => `<button class="option-btn${allPlacesFormat === f ? ' selected' : ''}" style="display:inline-block; width:auto; margin:0 6px 6px 0; padding:8px 14px;" onclick="setAllPlacesFilter('${f}')">${f}</button>`).join('')}
+  `
+
+  const cardsHtml = filtered.map(p => `
+    <div class="place-card" style="margin-bottom:14px;">
+      <div class="place-title">📍 ${p.name}</div>
+      <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
+      <div class="divider"></div>
+      <div class="place-why">${p.why}</div>
+      <div class="divider"></div>
+      <div class="place-duration">⏱ ${p.duration}</div>
+    </div>
+  `).join('')
+
+  document.getElementById('all-places-container').innerHTML = `
+    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Все места</div>
+    <div style="display:flex; flex-wrap:wrap; margin-bottom:16px;">${filtersHtml}</div>
+    ${cardsHtml}
+  `
+}
+
+function setAllPlacesFilter(format) {
+  allPlacesFormat = format
+  renderAllPlaces()
+}
+
 /* ---------- ROUTES ---------- */
 
 function getRoute() {
@@ -714,7 +896,7 @@ function resetOnboarding() {
   document.getElementById('onboarding-next').disabled = true
   updateProgress()
   document.getElementById('bottom-nav').style.display = 'none'
-  showScreen('screen-onboarding')
+  startLongTest()
 }
 
 /* ---------- EARLY ACCESS ---------- */
@@ -733,9 +915,12 @@ if (profile.onboarding_done) {
     document.getElementById('bottom-nav').style.display = 'flex'
     goTo('screen-home')
   }, 1000)
-} else {
+} else if (profile.temperament) {
   showScreen('screen-splash')
   setTimeout(() => showScreen('screen-onboarding'), 1000)
+} else {
+  showScreen('screen-splash')
+  setTimeout(startLongTest, 1000)
 }
 </script>
 </body>
