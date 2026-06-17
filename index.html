@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ялла</title>
+<script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
+<style>
+  :root {
+    --teal: #8ED4D3;
+    --navy: #0E3878;
+    --yellow: #F8D16C;
+    --sang: #378ADD;
+    --sang-bg: #E6F1FB;
+    --phleg: #EF9F27;
+    --phleg-bg: #FAEEDA;
+    --melan: #7F77DD;
+    --melan-bg: #EEEDFE;
+    --chol: #639922;
+    --chol-bg: #EAF3DE;
+    --radius: 16px;
+    --radius-sm: 10px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0; background: #fff;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    color: var(--navy);
+  }
+  #app {
+    max-width: 480px;
+    margin: 0 auto;
+    min-height: 100vh;
+    position: relative;
+    background: #fff;
+  }
+  .screen {
+    display: none;
+    flex-direction: column;
+    min-height: 100vh;
+    padding: 20px;
+    padding-bottom: 100px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+  }
+  .screen.active { opacity: 1; }
+
+  button { font-family: inherit; cursor: pointer; }
+
+  .btn-primary {
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    width: 100%;
+    min-height: 48px;
+  }
+  .btn-primary:disabled { opacity: 0.4; }
+  .btn-secondary {
+    border: 1.5px solid var(--navy);
+    color: var(--navy);
+    background: transparent;
+    border-radius: 14px;
+    padding: 14px;
+    font-size: 15px;
+    font-weight: 500;
+    width: 100%;
+    min-height: 48px;
+  }
+
+  /* Progress bar */
+  .progress {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 24px;
+  }
+  .progress .seg {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: #eee;
+  }
+  .progress .seg.filled { background: var(--navy); }
+
+  .question-title {
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 24px; }
+  .options.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .option-btn {
+    border: 1.5px solid #e0e0e0;
+    background: #fafafa;
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-size: 15px;
+    color: var(--navy);
+    text-align: left;
+    min-height: 48px;
+  }
+  .option-btn.selected { border: 2px solid var(--navy); background: #fff; font-weight: 600; }
+
+  .top-spacer { flex: 1; }
+
+  /* Result screen */
+  #screen-result {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 14px;
+  }
+  .result-emoji { font-size: 60px; }
+  .result-name { font-size: 26px; font-weight: 700; }
+  .result-desc { font-size: 15px; opacity: 0.85; max-width: 320px; }
+  .result-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-top: 20px; max-width: 320px; }
+
+  /* Home */
+  .greeting { font-size: 22px; font-weight: 600; margin-bottom: 20px; }
+  .home-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 12px rgba(14,56,120,0.10);
+    padding: 20px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .home-card .icon { font-size: 28px; }
+  .banner {
+    margin-top: 16px;
+    background: var(--teal);
+    border-radius: var(--radius);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .banner-text { font-size: 14px; font-weight: 500; }
+
+  /* Place card */
+  .place-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 16px rgba(14,56,120,0.12);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .place-title { font-size: 20px; font-weight: 700; }
+  .place-sub { font-size: 14px; opacity: 0.7; }
+  .divider { height: 1px; background: #eee; }
+  .place-why { font-size: 15px; line-height: 1.45; }
+  .place-duration { font-size: 14px; opacity: 0.7; }
+  .place-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+  /* Route card */
+  .route-card {
+    background: #fff;
+    border-radius: var(--radius);
+    box-shadow: 0 2px 16px rgba(14,56,120,0.12);
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .route-title { font-size: 20px; font-weight: 700; }
+  .route-desc { font-size: 14px; opacity: 0.8; }
+  .route-points { display: flex; flex-direction: column; gap: 10px; }
+  .route-point { font-size: 15px; line-height: 1.4; }
+  .route-point b { color: var(--navy); }
+  .route-tip { font-size: 14px; opacity: 0.8; }
+  .route-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 16px; }
+
+  /* Profile */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 999px;
+    padding: 10px 18px;
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 20px;
+  }
+  .profile-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid #eee;
+    font-size: 15px;
+  }
+  .profile-row .label { opacity: 0.6; }
+  .profile-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
+
+  /* Bottom nav */
+  #bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    justify-content: space-around;
+    padding: 8px 0 16px;
+    z-index: 50;
+  }
+  .nav-btn {
+    background: none;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 22px;
+    color: #bbb;
+    min-height: 48px;
+    min-width: 48px;
+  }
+  .nav-btn span { font-size: 11px; }
+  .nav-btn.active { color: var(--navy); }
+
+  /* Modal */
+  #modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(14,56,120,0.4);
+    z-index: 100;
+    align-items: flex-end;
+    justify-content: center;
+  }
+  #modal-overlay.active { display: flex; }
+  .modal-sheet {
+    background: #fff;
+    width: 100%;
+    max-width: 480px;
+    border-radius: 20px 20px 0 0;
+    padding: 24px 20px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+
+  /* Toast */
+  #toast {
+    display: none;
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--navy);
+    color: #fff;
+    padding: 12px 20px;
+    border-radius: 12px;
+    font-size: 14px;
+    z-index: 200;
+    max-width: 90%;
+    text-align: center;
+  }
+  #toast.show { display: block; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- SPLASH -->
+  <div id="screen-splash" class="screen" style="background:var(--teal); justify-content:center; align-items:center; flex-direction:column; gap:16px;">
+    <div style="font-size:52px; font-weight:600; color:var(--navy); letter-spacing:-0.02em;">ялла</div>
+    <div style="font-size:15px; color:var(--navy); opacity:0.8; text-align:center;">выбраться в город — не одному</div>
+  </div>
+
+  <!-- ONBOARDING -->
+  <div id="screen-onboarding" class="screen">
+    <div class="progress" id="onboarding-progress">
+      <div class="seg" data-step="1"></div>
+      <div class="seg" data-step="2"></div>
+      <div class="seg" data-step="3"></div>
+      <div class="seg" data-step="4"></div>
+    </div>
+
+    <div class="step" id="step-1" style="display:flex; flex-direction:column;">
+      <div class="question-title">Какой у тебя сейчас вайб?</div>
+      <div class="options" data-question="mood">
+        <button class="option-btn" data-value="весёлый">Весёлый</button>
+        <button class="option-btn" data-value="грустный">Грустный</button>
+        <button class="option-btn" data-value="50/50">50/50</button>
+      </div>
+    </div>
+
+    <div class="step" id="step-2" style="display:none; flex-direction:column;">
+      <div class="question-title">К чему стремишься?</div>
+      <div class="options" data-question="goal">
+        <button class="option-btn" data-value="расслабиться">Расслабиться</button>
+        <button class="option-btn" data-value="отдохнуть">Отдохнуть</button>
+        <button class="option-btn" data-value="адреналин">Адреналин</button>
+        <button class="option-btn" data-value="весело">Весело</button>
+      </div>
+    </div>
+
+    <div class="step" id="step-3" style="display:none; flex-direction:column;">
+      <div class="question-title">Что ближе?</div>
+      <div class="options grid2" data-question="format">
+        <button class="option-btn" data-value="прогулка">Прогулка</button>
+        <button class="option-btn" data-value="выставка">Выставка</button>
+        <button class="option-btn" data-value="лекция">Лекция</button>
+        <button class="option-btn" data-value="кино">Кино</button>
+        <button class="option-btn" data-value="кафе">Кафе</button>
+        <button class="option-btn" data-value="необычное">Необычное</button>
+      </div>
+    </div>
+
+    <div class="step" id="step-4" style="display:none; flex-direction:column;">
+      <div class="question-title">Когда выбираешься?</div>
+      <div class="options grid2" data-question="time">
+        <button class="option-btn" data-value="утро">Утро</button>
+        <button class="option-btn" data-value="день">День</button>
+        <button class="option-btn" data-value="вечер">Вечер</button>
+        <button class="option-btn" data-value="ночь">Ночь</button>
+      </div>
+    </div>
+
+    <div class="top-spacer"></div>
+    <button class="btn-primary" id="onboarding-next" disabled onclick="onboardingNext()">Далее</button>
+  </div>
+
+  <!-- RESULT -->
+  <div id="screen-result" class="screen">
+    <div class="result-emoji" id="result-emoji"></div>
+    <div class="result-name" id="result-name"></div>
+    <div class="result-desc" id="result-desc"></div>
+    <div class="result-actions">
+      <button class="btn-primary" id="result-btn-place" onclick="finishOnboarding('screen-places')">Найти место</button>
+      <button class="btn-secondary" onclick="finishOnboarding('screen-routes')">Смотреть маршруты</button>
+    </div>
+  </div>
+
+  <!-- HOME -->
+  <div id="screen-home" class="screen">
+    <div class="greeting">Привет! 👋</div>
+    <div class="home-card" onclick="goTo('screen-places')">
+      <span class="icon">📍</span>
+      <span>Найти место</span>
+    </div>
+    <div class="home-card" onclick="goTo('screen-routes')">
+      <span class="icon">🗺</span>
+      <span>Получить маршрут</span>
+    </div>
+    <div class="banner">
+      <div class="banner-text">Ялла скоро запускается как полноценное приложение</div>
+      <button class="btn-primary" onclick="earlyAccess()">Хочу ранний доступ</button>
+    </div>
+  </div>
+
+  <!-- PLACES -->
+  <div id="screen-places" class="screen">
+    <div id="place-container"></div>
+  </div>
+
+  <!-- ROUTES -->
+  <div id="screen-routes" class="screen">
+    <div id="route-container"></div>
+  </div>
+
+  <!-- PROFILE -->
+  <div id="screen-profile" class="screen">
+    <div id="profile-container"></div>
+  </div>
+
+  <!-- BOTTOM NAV -->
+  <nav id="bottom-nav">
+    <button onclick="goTo('screen-home')" class="nav-btn" data-screen="screen-home">🏠<span>Главная</span></button>
+    <button onclick="goTo('screen-places')" class="nav-btn" data-screen="screen-places">📍<span>Места</span></button>
+    <button onclick="goTo('screen-routes')" class="nav-btn" data-screen="screen-routes">🗺<span>Маршруты</span></button>
+    <button onclick="goTo('screen-profile')" class="nav-btn" data-screen="screen-profile">👤<span>Профиль</span></button>
+  </nav>
+
+  <!-- MODAL -->
+  <div id="modal-overlay" onclick="closeModalOnOverlay(event)">
+    <div class="modal-sheet">
+      <div class="modal-title">Когда хочешь пойти?</div>
+      <button class="option-btn" onclick="confirmDate('Сегодня')">Сегодня</button>
+      <button class="option-btn" onclick="confirmDate('Эти выходные')">Эти выходные</button>
+      <button class="option-btn" onclick="confirmDate('Следующие выходные')">Следующие выходные</button>
+      <button class="btn-secondary" style="margin-top:8px;" onclick="closeModal()">Отмена</button>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div id="toast"></div>
+
+</div>
+
+<script>
+if (window.vkBridge) {
+  vkBridge.send('VKWebAppInit')
+}
+
+/* ---------- DATA ---------- */
+
+const PLACES = [
+  { id:'p1', name:'Патриаршие пруды', district:'Патриаршие', metro:'Маяковская', format:'прогулка', time:['утро'], mood:['весёлый','50/50'], why:'Один из самых атмосферных уголков Москвы. Ранним утром здесь почти никого нет — только вода, липы и тишина.', duration:'1 час', url:'https://t.me/yalla_channel/1' },
+  { id:'p2', name:'Чистые пруды', district:'Чистые пруды', metro:'Чистые пруды', format:'прогулка', time:['утро'], mood:['грустный','50/50'], why:'Длинная бульварная аллея вдоль пруда. Утром тихо, зелено и почти по-европейски.', duration:'1 час', url:'https://t.me/yalla_channel/2' },
+  { id:'p3', name:'Серебряный бор', district:'Хорошёво-Мнёвники', metro:'Полежаевская', format:'прогулка', time:['утро'], mood:['весёлый','50/50','грустный'], why:'Настоящий лес в черте города. Сосны, дорожки, запах хвои.', duration:'2–3 часа', url:'https://t.me/yalla_channel/3' },
+  { id:'p4', name:'Зарядье', district:'Китай-город', metro:'Китай-город', format:'прогулка', time:['день'], mood:['весёлый','50/50'], why:'Парк с видом на Кремль, подвесной мост, несколько природных зон за 10 минут.', duration:'1.5 часа', url:'https://t.me/yalla_channel/4' },
+  { id:'p5', name:'Коломенское', district:'Коломенское', metro:'Коломенская', format:'прогулка', time:['день'], mood:['весёлый','50/50','грустный'], why:'Старинная усадьба на берегу реки. Яблоневые сады и крутой склон с видом на воду.', duration:'2–3 часа', url:'https://t.me/yalla_channel/5' },
+  { id:'p6', name:'Бульварное кольцо', district:'Центр', metro:'Кропоткинская', format:'прогулка', time:['вечер'], mood:['весёлый','50/50','грустный'], why:'9 км, которые не надоедают. Скамейки, фонари, старые дома.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/7' },
+  { id:'p7', name:'Крымская набережная', district:'Хамовники', metro:'Парк культуры', format:'прогулка', time:['вечер'], mood:['весёлый','50/50'], why:'Набережная без машин, огни города на воде, уличные художники.', duration:'1 час', url:'https://t.me/yalla_channel/8' },
+  { id:'p8', name:'Чистые пруды вечером', district:'Чистые пруды', metro:'Чистые пруды', format:'прогулка', time:['вечер'], mood:['весёлый','грустный','50/50'], why:'Возможно, лучший бесплатный маршрут Москвы. Пруд, фонари, скамейки.', duration:'1–1.5 часа', url:'https://t.me/yalla_channel/11' },
+  { id:'p9', name:'Китай-город ночью', district:'Китай-город', metro:'Китай-город', format:'прогулка', time:['ночь'], mood:['весёлый','50/50'], why:'Переулки превращаются в тихий лабиринт с барами и двориками.', duration:'1–2 часа', url:'https://t.me/yalla_channel/10' },
+  { id:'p10', name:'Музей Москвы', district:'Провиантские склады', metro:'Парк культуры', format:'выставка', time:['утро'], mood:['весёлый','50/50','грустный'], why:'История города через предметы и фотографии. Влюбляет в Москву заново.', duration:'1.5 часа', url:'https://t.me/yalla_channel/12' },
+  { id:'p11', name:'ГМИИ им. Пушкина', district:'Волхонка', metro:'Кропоткинская', format:'выставка', time:['день'], mood:['весёлый','50/50','грустный'], why:'Европейская живопись, античные слепки, временные выставки мирового уровня.', duration:'2–3 часа', url:'https://t.me/yalla_channel/13' },
+  { id:'p12', name:'Третьяковская галерея', district:'Лаврушинский пер.', metro:'Третьяковская', format:'выставка', time:['день'], mood:['весёлый','50/50','грустный'], why:'Русское искусство от икон до авангарда. Каждый раз видишь другое.', duration:'2–3 часа', url:'https://t.me/yalla_channel/14' },
+  { id:'p13', name:'Музей «Гараж»', district:'Парк Горького', metro:'Октябрьская', format:'выставка', time:['вечер'], mood:['весёлый','50/50'], why:'Главная площадка современного искусства России. Всегда есть о чём поговорить после.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/16' },
+  { id:'p14', name:'Центр «Зотов»', district:'Пресня', metro:'Улица 1905 года', format:'выставка', time:['день','вечер'], mood:['весёлый','50/50','грустный'], why:'В здании бывшего хлебозавода-конструктивиста. После хочется думать.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/19' },
+  { id:'p15', name:'ГЭС-2', district:'Якиманка', metro:'Кропоткинская', format:'выставка', time:['день','вечер'], mood:['весёлый','50/50','грустный'], why:'Бывшая электростанция на реке. Арт, берёзы и ощущение другого измерения.', duration:'2–3 часа', url:'https://t.me/yalla_channel/46' },
+  { id:'p16', name:'Лекторий Политеха', district:'Новая площадь', metro:'Лубянка', format:'лекция', time:['вечер'], mood:['весёлый','50/50','грустный'], why:'Одни из лучших публичных лекций Москвы, часто с известными спикерами.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/23' },
+  { id:'p17', name:'Библиотека Некрасова', district:'Бауманская', metro:'Бауманская', format:'лекция', time:['вечер'], mood:['грустный','50/50'], why:'Уютная библиотека с лекциями о литературе и городе. Без пафоса.', duration:'1.5 часа', url:'https://t.me/yalla_channel/24' },
+  { id:'p18', name:'Лектории ВШЭ', district:'Мясницкая', metro:'Чистые пруды', format:'лекция', time:['день'], mood:['весёлый','50/50'], why:'Открытые лекции от учёных и журналистов. Часто бесплатно.', duration:'1.5 часа', url:'https://t.me/yalla_channel/20' },
+  { id:'p19', name:'Кофейня Skuratov', district:'Маяковская', metro:'Маяковская', format:'кафе', time:['утро'], mood:['50/50','грустный'], why:'Сибирская обжарка. Тихо, вкусно, хороший свет.', duration:'1 час', url:'https://t.me/yalla_channel/33' },
+  { id:'p20', name:'Letters × Поляндрия', district:'Петровка', metro:'Чеховская', format:'кафе', time:['утро','день','вечер'], mood:['грустный','50/50'], why:'Книги, кофе и slow living vibe. Приходят без спешки.', duration:'1–2 часа', url:'https://t.me/yalla_channel/34' },
+  { id:'p21', name:'Депо. Москва', district:'Лесная', metro:'Белорусская', format:'кафе', time:['день'], mood:['весёлый','50/50'], why:'Огромное фуд-маркетное пространство. Десятки концепций под одной крышей.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/35' },
+  { id:'p22', name:'Бар «Нора»', district:'Покровка', metro:'Чистые пруды', format:'кафе', time:['вечер'], mood:['грустный','50/50'], why:'Небольшой бар с натуральными винами. Уют для тех, кто не любит шума.', duration:'2 часа', url:'https://t.me/yalla_channel/39' },
+  { id:'p23', name:'Shortlist Books & Spirits', district:'Китай-город', metro:'Китай-город', format:'кафе', time:['вечер','ночь'], mood:['весёлый','50/50'], why:'Книжный и бар одновременно. Разговоры до закрытия.', duration:'2+ часа', url:'https://t.me/yalla_channel/40' },
+  { id:'p24', name:'Bar BQ Café', district:'Охотный ряд', metro:'Охотный Ряд', format:'кафе', time:['ночь'], mood:['весёлый','50/50'], why:'Ночной вид на Кремль с открытой террасы.', duration:'1.5 часа', url:'https://t.me/yalla_channel/42' },
+  { id:'p25', name:'Пионер', district:'Кутузовский пр.', metro:'Кутузовская', format:'кино', time:['вечер'], mood:['грустный','50/50'], why:'Культовый кинотеатр. Авторское кино, ретроспективы, уютный зал.', duration:'2 часа', url:'https://t.me/yalla_channel/28' },
+  { id:'p26', name:'Иллюзион', district:'Котельническая наб.', metro:'Таганская', format:'кино', time:['день'], mood:['грустный','50/50'], why:'Классика мирового кино — то, чего нет в мультиплексах.', duration:'2 часа', url:'https://t.me/yalla_channel/26' },
+  { id:'p27', name:'Аптекарский огород', district:'Проспект Мира', metro:'Проспект Мира', format:'необычное', time:['утро'], mood:['грустный','50/50'], why:'Старейший ботанический сад МГУ. Ранним утром пустой и тихий.', duration:'1.5 часа', url:'https://t.me/yalla_channel/43' },
+  { id:'p28', name:'Бункер-42', district:'Таганская', metro:'Таганская', format:'необычное', time:['вечер'], mood:['весёлый','50/50'], why:'Секретный бункер на глубине 65 метров. Атмосфера максимальная.', duration:'1.5 часа', url:'https://t.me/yalla_channel/47' },
+  { id:'p29', name:'Found Record Store', district:'Патриаршие', metro:'Маяковская', format:'необычное', time:['день','вечер'], mood:['весёлый','50/50'], why:'Винил, пицца и ощущение маленького города внутри большого.', duration:'1.5–2 часа', url:'https://t.me/yalla_channel/51' },
+  { id:'p30', name:'Фаланстер', district:'Тверская', metro:'Пушкинская', format:'необычное', time:['день','вечер'], mood:['грустный','50/50'], why:'Независимый книжный, в котором легко потеряться на час.', duration:'1 час', url:'https://t.me/yalla_channel/52' },
+]
+
+const ROUTES = [
+  { id:'r1', name:'Тихое утро', time:'утро', mood:['грустный','50/50'], duration:'2–3 часа', desc:'Для тех, кто хочет начать день медленно и без суеты.', points:[{name:'Аптекарский огород',desc:'Тихий ботанический сад.'},{name:'Кофейня Skuratov',desc:'Остановиться на кофе.'},{name:'Чистые пруды',desc:'Прогулка вдоль воды.'}], tip:'Лучше в будний день — меньше людей.' },
+  { id:'r2', name:'Бодрое утро', time:'утро', mood:['весёлый','50/50'], duration:'2 часа', desc:'Бодрый старт с движением и хорошим кофе.', points:[{name:'Серебряный бор',desc:'Прогулка по лесу.'},{name:'Депо. Москва',desc:'Завтрак на любой вкус.'}], tip:'Лучше в выходной — больше времени.' },
+  { id:'r3', name:'Культурный день', time:'день', mood:['весёлый','50/50'], duration:'4–5 часов', desc:'Выставки, кофе и прогулка в центре.', points:[{name:'ГМИИ им. Пушкина',desc:'Мировая живопись.'},{name:'Крымская набережная',desc:'Прогулка вдоль воды.'},{name:'Центральный рынок',desc:'Обед с видом.'}], tip:'Бронируй билеты в ГМИИ заранее.' },
+  { id:'r4', name:'Медленный день', time:'день', mood:['грустный','50/50'], duration:'3 часа', desc:'Книги, кофе и немного воздуха.', points:[{name:'Фаланстер',desc:'Полистать книги.'},{name:'Letters × Поляндрия',desc:'Кофе и замедление.'},{name:'Патриаршие пруды',desc:'Подышать в тишине.'}], tip:'Не планируй ничего после.' },
+  { id:'r5', name:'Вечер с атмосферой', time:'вечер', mood:['грустный','50/50'], duration:'2–3 часа', desc:'Тихий вечер в красивых местах.', points:[{name:'Бульварное кольцо',desc:'Прогулка под фонарями.'},{name:'Бар «Нора»',desc:'Натуральное вино и тишина.'}], tip:'Столик в Норе лучше бронировать.' },
+  { id:'r6', name:'Яркий вечер', time:'вечер', mood:['весёлый','50/50'], duration:'3–4 часа', desc:'Движение, энергия и разные места.', points:[{name:'ГЭС-2',desc:'Арт и закат на реке.'},{name:'Found Record Store',desc:'Винил и пицца.'},{name:'Shortlist',desc:'Закончить вечер разговорами.'}], tip:'ГЭС-2 работает до 22:00.' },
+  { id:'r7', name:'Ночная Москва', time:'ночь', mood:['весёлый','50/50'], duration:'3 часа', desc:'Город ночью — совсем другой.', points:[{name:'Китай-город ночью',desc:'Переулки и атмосфера.'},{name:'Bar BQ Café',desc:'Вид на Кремль с террасы.'}], tip:'Начинай не раньше 22:00.' },
+  { id:'r8', name:'Тихая ночь', time:'ночь', mood:['грустный','50/50'], duration:'2 часа', desc:'Для тех, кто не спит и хочет побыть в городе.', points:[{name:'Бульварное кольцо',desc:'Ночью почти пустое.'},{name:'Shortlist',desc:'Разговоры до закрытия.'}], tip:'Хорошо в будние ночи.' },
+]
+
+const TYPES = {
+  sanguine:    { name:'Сангвиник',  color:'#378ADD', bg:'#E6F1FB', emoji:'☀️', desc:'Открытый, лёгкий на подъём. Тебе нужны места с энергией.' },
+  phlegmatic:  { name:'Флегматик',  color:'#EF9F27', bg:'#FAEEDA', emoji:'🍂', desc:'Спокойный, вдумчивый. Ценишь комфорт и атмосферные места.' },
+  melancholic: { name:'Меланхолик', color:'#7F77DD', bg:'#EEEDFE', emoji:'🌙', desc:'Глубокий, чувствительный. Любишь места со смыслом.' },
+  choleric:    { name:'Холерик',    color:'#639922', bg:'#EAF3DE', emoji:'⚡', desc:'Энергичный, инициативный. Хочешь новых впечатлений.' },
+}
+
+/* ---------- STORAGE ---------- */
+
+function save(key, value) {
+  localStorage.setItem('yalla_' + key, JSON.stringify(value))
+}
+
+function load(key, fallback) {
+  try {
+    const v = JSON.parse(localStorage.getItem('yalla_' + key))
+    return v === null || v === undefined ? fallback : v
+  } catch { return fallback }
+}
+
+/* ---------- TEMPERAMENT ---------- */
+
+function getTemperament(profile) {
+  if (profile.goal === 'адреналин') return 'choleric'
+  if (profile.mood === 'грустный' && profile.goal === 'расслабиться') return 'melancholic'
+  if (profile.mood === 'весёлый' && profile.goal === 'весело') return 'sanguine'
+  return 'phlegmatic'
+}
+
+/* ---------- NAVIGATION ---------- */
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => {
+    s.style.display = 'none'
+    s.classList.remove('active')
+  })
+  const el = document.getElementById(id)
+  el.style.display = 'flex'
+  requestAnimationFrame(() => el.classList.add('active'))
+}
+
+function goTo(screenId) {
+  showScreen(screenId)
+  document.querySelectorAll('.nav-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.screen === screenId)
+  })
+  if (screenId === 'screen-places') renderPlace()
+  if (screenId === 'screen-routes') renderRoute()
+  if (screenId === 'screen-profile') renderProfile()
+}
+
+/* ---------- ONBOARDING ---------- */
+
+let currentStep = 1
+const answers = {}
+
+document.querySelectorAll('.options').forEach(group => {
+  group.addEventListener('click', (e) => {
+    const btn = e.target.closest('.option-btn')
+    if (!btn) return
+    group.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+    btn.classList.add('selected')
+    answers[group.dataset.question] = btn.dataset.value
+    document.getElementById('onboarding-next').disabled = false
+  })
+})
+
+function updateProgress() {
+  document.querySelectorAll('#onboarding-progress .seg').forEach(seg => {
+    seg.classList.toggle('filled', parseInt(seg.dataset.step) <= currentStep)
+  })
+}
+updateProgress()
+
+function onboardingNext() {
+  if (currentStep < 4) {
+    document.getElementById('step-' + currentStep).style.display = 'none'
+    currentStep++
+    document.getElementById('step-' + currentStep).style.display = 'flex'
+    updateProgress()
+    const stepEl = document.getElementById('step-' + currentStep)
+    const q = stepEl.querySelector('.options').dataset.question
+    document.getElementById('onboarding-next').disabled = !answers[q]
+  } else {
+    const profile = {
+      mood: answers.mood,
+      goal: answers.goal,
+      format: answers.format,
+      time: answers.time,
+      onboarding_done: true
+    }
+    save('profile', profile)
+    showResult(profile)
+  }
+}
+
+function showResult(profile) {
+  const type = getTemperament(profile)
+  const t = TYPES[type]
+  document.getElementById('screen-result').style.background = t.bg
+  document.getElementById('result-emoji').textContent = t.emoji
+  document.getElementById('result-name').textContent = t.name
+  document.getElementById('result-desc').textContent = t.desc
+  document.getElementById('result-btn-place').style.background = t.color
+  showScreen('screen-result')
+}
+
+function finishOnboarding(targetScreen) {
+  document.getElementById('bottom-nav').style.display = 'flex'
+  goTo(targetScreen)
+}
+
+/* ---------- PLACES ---------- */
+
+function getNextPlace() {
+  const profile = load('profile', {})
+  const seen = load('seen', [])
+  let filtered = PLACES.filter(p =>
+    (!profile.format || p.format === profile.format) &&
+    (!profile.time || p.time.includes(profile.time)) &&
+    (!profile.mood || p.mood.includes(profile.mood))
+  ).filter(p => !seen.includes(p.id))
+  if (filtered.length === 0) {
+    save('seen', [])
+    filtered = PLACES
+  }
+  return filtered[Math.floor(Math.random() * filtered.length)]
+}
+
+let currentPlace = null
+
+function renderPlace() {
+  currentPlace = getNextPlace()
+  const p = currentPlace
+  document.getElementById('place-container').innerHTML = `
+    <div class="place-card">
+      <div class="place-title">📍 ${p.name}</div>
+      <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
+      <div class="divider"></div>
+      <div class="place-why">${p.why}</div>
+      <div class="divider"></div>
+      <div class="place-duration">⏱ ${p.duration}</div>
+      <div class="place-actions">
+        <button class="btn-primary" onclick="likePlace()">Нравится</button>
+        <button class="btn-secondary" onclick="renderPlace()">Показать другое</button>
+        <button class="btn-secondary" onclick="openDateModal()">🗓 Хочу туда</button>
+      </div>
+    </div>
+  `
+}
+
+function likePlace() {
+  const seen = load('seen', [])
+  if (!seen.includes(currentPlace.id)) {
+    seen.push(currentPlace.id)
+    save('seen', seen)
+  }
+  showToast('Открой пост в канале')
+  setTimeout(renderPlace, 2000)
+}
+
+/* ---------- MODAL / DATE ---------- */
+
+function openDateModal() {
+  document.getElementById('modal-overlay').classList.add('active')
+}
+
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('active')
+}
+
+function closeModalOnOverlay(e) {
+  if (e.target.id === 'modal-overlay') closeModal()
+}
+
+function confirmDate(label) {
+  closeModal()
+  showToast('Сохранили!')
+}
+
+/* ---------- TOAST ---------- */
+
+let toastTimer = null
+function showToast(text) {
+  const toast = document.getElementById('toast')
+  toast.textContent = text
+  toast.classList.add('show')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2000)
+}
+
+/* ---------- ROUTES ---------- */
+
+function getRoute() {
+  const profile = load('profile', {})
+  return ROUTES.find(r =>
+    r.time === profile.time && r.mood.includes(profile.mood)
+  ) || ROUTES[0]
+}
+
+function renderRoute() {
+  const r = getRoute()
+  const pointsHtml = r.points.map((pt, i) => `
+    <div class="route-point"><b>${i + 1}. ${pt.name}</b> — ${pt.desc}</div>
+  `).join('')
+  document.getElementById('route-container').innerHTML = `
+    <div class="route-card">
+      <div class="route-title">🗺 ${r.name}</div>
+      <div class="route-desc">${r.desc} ⏱ ${r.duration}</div>
+      <div class="divider"></div>
+      <div class="route-points">${pointsHtml}</div>
+      <div class="divider"></div>
+      <div class="route-tip">💡 ${r.tip}</div>
+      <div class="route-actions">
+        <button class="btn-primary" onclick="shareRoute('${r.id}')">Поделиться</button>
+        <button class="btn-secondary" onclick="renderRoute()">Другой маршрут</button>
+      </div>
+    </div>
+  `
+}
+
+function shareRoute(routeId) {
+  const text = 'Маршрут от Ялла: ' + routeId
+  if (navigator.share) {
+    navigator.share({ title: 'Ялла', text }).catch(() => {})
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('Ссылка скопирована'))
+  } else {
+    showToast('Ссылка скопирована')
+  }
+}
+
+/* ---------- PROFILE ---------- */
+
+function renderProfile() {
+  const profile = load('profile', {})
+  const type = getTemperament(profile)
+  const t = TYPES[type]
+  document.getElementById('profile-container').innerHTML = `
+    <div class="badge" style="background:${t.bg}; color:${t.color};">${t.emoji} ${t.name}</div>
+    <div class="profile-row"><span class="label">Вайб</span><span>${profile.mood || '—'}</span></div>
+    <div class="profile-row"><span class="label">Стремление</span><span>${profile.goal || '—'}</span></div>
+    <div class="profile-row"><span class="label">Формат</span><span>${profile.format || '—'}</span></div>
+    <div class="profile-row"><span class="label">Время</span><span>${profile.time || '—'}</span></div>
+    <div class="profile-actions">
+      <button class="btn-primary" onclick="resetOnboarding()">Обновить предпочтения</button>
+      <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
+    </div>
+  `
+}
+
+function resetOnboarding() {
+  save('profile', {})
+  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+  for (const k in answers) delete answers[k]
+  currentStep = 1
+  document.querySelectorAll('.step').forEach(s => s.style.display = 'none')
+  document.getElementById('step-1').style.display = 'flex'
+  document.getElementById('onboarding-next').disabled = true
+  updateProgress()
+  document.getElementById('bottom-nav').style.display = 'none'
+  showScreen('screen-onboarding')
+}
+
+/* ---------- EARLY ACCESS ---------- */
+
+function earlyAccess() {
+  save('early_access', true)
+  alert('Записали! Сообщим при запуске 🎉')
+}
+
+/* ---------- INIT ---------- */
+
+const profile = load('profile', {})
+if (profile.onboarding_done) {
+  showScreen('screen-splash')
+  setTimeout(() => {
+    document.getElementById('bottom-nav').style.display = 'flex'
+    goTo('screen-home')
+  }, 1000)
+} else {
+  showScreen('screen-splash')
+  setTimeout(() => showScreen('screen-onboarding'), 1000)
+}
+</script>
+</body>
+</html>
+<!--
+  Деплой на Netlify:
+  1. Зайди на https://app.netlify.com
+  2. Перетащи папку с файлом index.html в окно деплоя (Drag and drop)
+     или подключи репозиторий и укажи этот файл как корень сайта.
+  3. Netlify выдаст ссылку вида https://your-app.netlify.app
+  4. В VK Developers создай Mini App и укажи эту ссылку как Base URL.
+  5. Готово — приложение откроется внутри ВКонтакте.
+-->
