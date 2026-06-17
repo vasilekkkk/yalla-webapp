@@ -153,7 +153,32 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
+    overflow: hidden;
   }
+  .place-card.has-photo { padding: 0 0 22px; }
+  .place-photo {
+    width: 100%;
+    height: 180px;
+    object-fit: cover;
+    display: block;
+  }
+  .place-photo-placeholder {
+    width: 100%;
+    height: 180px;
+    background: var(--teal);
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 40px;
+    font-weight: 600;
+  }
+  .place-card.has-photo .place-title,
+  .place-card.has-photo .place-sub,
+  .place-card.has-photo .place-why,
+  .place-card.has-photo .place-duration,
+  .place-card.has-photo .place-actions,
+  .place-card.has-photo .divider { margin-left: 22px; margin-right: 22px; }
   .place-title { font-size: 20px; font-weight: 700; }
   .place-sub { font-size: 14px; opacity: 0.7; }
   .divider { height: 1px; background: #eee; }
@@ -767,13 +792,20 @@ function getNextPlace() {
   return filtered[Math.floor(Math.random() * filtered.length)]
 }
 
+function placePhotoHtml(p) {
+  return p.photo
+    ? `<img class="place-photo" src="${p.photo}" alt="${p.name}">`
+    : `<div class="place-photo-placeholder">${p.name.charAt(0)}</div>`
+}
+
 let currentPlace = null
 
 function renderPlace() {
   currentPlace = getNextPlace()
   const p = currentPlace
   document.getElementById('place-container').innerHTML = `
-    <div class="place-card">
+    <div class="place-card has-photo">
+      ${placePhotoHtml(p)}
       <div class="place-title">📍 ${p.name}</div>
       <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
       <div class="divider"></div>
@@ -843,7 +875,8 @@ function renderAllPlaces() {
   `
 
   const cardsHtml = filtered.map(p => `
-    <div class="place-card" style="margin-bottom:14px;">
+    <div class="place-card has-photo" style="margin-bottom:14px;">
+      ${placePhotoHtml(p)}
       <div class="place-title">📍 ${p.name}</div>
       <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
       <div class="divider"></div>
