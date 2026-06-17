@@ -200,6 +200,44 @@
   .profile-row .label { opacity: 0.6; }
   .profile-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 
+  /* Avatar */
+  .avatar-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+  .avatar-circle {
+    width: 88px;
+    height: 88px;
+    border-radius: 50%;
+    background-size: cover;
+    background-position: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 36px;
+    position: relative;
+    overflow: hidden;
+  }
+  .avatar-edit-badge {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    border: 2px solid #fff;
+  }
+  .avatar-hint { font-size: 12px; opacity: 0.6; }
+
   /* Bottom nav */
   #bottom-nav {
     display: none;
@@ -389,6 +427,7 @@
   <!-- PROFILE -->
   <div id="screen-profile" class="screen">
     <div id="profile-container"></div>
+    <input type="file" id="avatar-input" accept="image/*" style="display:none;" onchange="onAvatarSelected(event)">
   </div>
 
   <!-- BOTTOM NAV -->
@@ -873,7 +912,18 @@ function renderProfile() {
   const profile = load('profile', {})
   const type = getTemperament(profile)
   const t = TYPES[type]
+  const avatar = load('avatar', null)
+  const avatarStyle = avatar
+    ? `background-image:url('${avatar}'); background-color:${t.bg};`
+    : `background-color:${t.bg};`
   document.getElementById('profile-container').innerHTML = `
+    <div class="avatar-wrap">
+      <div class="avatar-circle" style="${avatarStyle}" onclick="document.getElementById('avatar-input').click()">
+        ${avatar ? '' : t.emoji}
+        <div class="avatar-edit-badge">✎</div>
+      </div>
+      <div class="avatar-hint">Нажми, чтобы поставить своё фото</div>
+    </div>
     <div class="badge" style="background:${t.bg}; color:${t.color};">${t.emoji} ${t.name}</div>
     <div class="profile-row"><span class="label">Вайб</span><span>${profile.mood || '—'}</span></div>
     <div class="profile-row"><span class="label">Стремление</span><span>${profile.goal || '—'}</span></div>
@@ -884,6 +934,17 @@ function renderProfile() {
       <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
     </div>
   `
+}
+
+function onAvatarSelected(event) {
+  const file = event.target.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    save('avatar', reader.result)
+    renderProfile()
+  }
+  reader.readAsDataURL(file)
 }
 
 function resetOnboarding() {
