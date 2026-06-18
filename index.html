@@ -655,7 +655,8 @@ let vkUserId = null
 async function initVkUser() {
   if (window.vkBridge) {
     try {
-      const info = await vkBridge.send('VKWebAppGetUserInfo')
+      const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
+      const info = await Promise.race([vkBridge.send('VKWebAppGetUserInfo'), timeout])
       vkUserId = info.id
       const profile = load('profile', {})
       if (!profile.name && info.first_name) {
