@@ -1145,7 +1145,8 @@ function onboardingNext() {
     profile.time = answers.time
     profile.onboarding_done = true
     save('profile', profile)
-    currentPlace = null
+    const previousPlaceId = currentPlace ? currentPlace.id : null
+    currentPlace = getNextPlace(previousPlaceId)
     placesTabFormat = ''
     currentRouteId = null
     ymGoal('short_test_completed')
