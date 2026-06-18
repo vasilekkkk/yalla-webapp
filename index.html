@@ -201,6 +201,43 @@
     padding: 6px 12px;
     border-radius: 999px;
   }
+  .badge-count {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--red, #E24B4A);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 700;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 4px;
+  }
+  .chat-list-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px;
+    border-radius: var(--radius-sm);
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+    position: relative;
+  }
+  .chat-list-unread { background: var(--red, #E24B4A); color: #fff; font-size: 12px; font-weight: 700; min-width: 22px; height: 22px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 6px; }
+  .vk-suggest-banner {
+    background: var(--teal);
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    margin-bottom: 10px;
+    font-size: 13px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
   .place-card.has-photo .place-title,
   .place-card.has-photo .place-sub,
   .place-card.has-photo .place-why,
@@ -300,6 +337,7 @@
   .chat-row { display: flex; flex-direction: column; align-items: flex-start; max-width: 80%; }
   .chat-row.mine { align-items: flex-end; align-self: flex-end; }
   .chat-sender { font-size: 11px; opacity: 0.5; margin-bottom: 2px; padding: 0 4px; }
+  .chat-time { font-size: 10px; opacity: 0.45; margin-top: 3px; padding: 0 4px; }
   .chat-bubble {
     background: #f0f0f0;
     color: var(--navy);
@@ -586,6 +624,11 @@
     <div id="saved-container"></div>
   </div>
 
+  <!-- MESSAGES (chat list) -->
+  <div id="screen-messages" class="screen">
+    <div id="messages-container"></div>
+  </div>
+
   <!-- COMPANIONS -->
   <div id="screen-companions" class="screen">
     <div id="companions-container"></div>
@@ -593,11 +636,12 @@
 
   <!-- CHAT -->
   <div id="screen-chat" class="screen" style="padding-bottom:90px;">
-    <button class="btn-secondary" style="margin-bottom:12px;" onclick="goTo('screen-companions')">← Назад</button>
+    <button class="btn-secondary" id="chat-back-btn" style="margin-bottom:12px;" onclick="goTo('screen-messages')">← Назад</button>
     <div style="margin-bottom:10px;">
       <div id="chat-title" style="font-size:17px; font-weight:600;"></div>
       <div id="chat-subtitle" style="font-size:12px; opacity:0.6;"></div>
     </div>
+    <div id="chat-vk-suggest"></div>
     <div id="chat-messages" class="chat-messages"></div>
     <div class="chat-input-row">
       <input id="chat-input" class="chat-input" type="text" placeholder="Написать сообщение..." onkeydown="if(event.key==='Enter') sendChatMessage()">
@@ -961,6 +1005,7 @@ function goTo(screenId) {
   if (screenId === 'screen-profile') renderProfile()
   if (screenId === 'screen-saved') renderSaved()
   if (screenId === 'screen-companions') renderCompanions()
+  if (screenId === 'screen-messages') renderMessagesList()
   if (screenId === 'screen-chat') startChatPolling()
   if (screenId !== 'screen-chat') stopChatPolling()
   if (screenId === 'screen-home') {
@@ -1088,7 +1133,7 @@ function finishOnboarding(targetScreen) {
 
 /* ---------- PLACES ---------- */
 
-function getNextPlace() {
+function getNextPlace(excludeId) {
   const profile = load('profile', {})
   const seen = load('seen', [])
   let filtered = PLACES.filter(p =>
@@ -1099,6 +1144,10 @@ function getNextPlace() {
   if (filtered.length === 0) {
     save('seen', [])
     filtered = PLACES
+  }
+  if (excludeId) {
+    const withoutCurrent = filtered.filter(p => p.id !== excludeId)
+    if (withoutCurrent.length > 0) filtered = withoutCurrent
   }
   return filtered[Math.floor(Math.random() * filtered.length)]
 }
@@ -1164,7 +1213,7 @@ function placeCardHtml(p, opts = {}) {
 }
 
 function rerollRecommendation() {
-  currentPlace = getNextPlace()
+  currentPlace = getNextPlace(currentPlace ? currentPlace.id : null)
   renderPlacesTab()
 }
 
@@ -1254,6 +1303,64 @@ async function confirmDate(label) {
   setTimeout(() => goTo('screen-companions'), 600)
 }
 
+function formatChatTime(createdAt) {
+  const d = new Date(createdAt.replace(' ', 'T') + 'Z')
+  if (isNaN(d.getTime())) return ''
+  const now = new Date()
+  const sameDay = d.toDateString() === now.toDateString()
+  return sameDay
+    ? d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+    : d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' })
+}
+
+async function renderMessagesList() {
+  const container = document.getElementById('messages-container')
+  container.innerHTML = `
+    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Сообщения</div>
+    <div id="messages-list">Загружаем...</div>
+  `
+  if (!vkUserId) return
+  const data = await apiCall(`/api/my-chats?vk_user_id=${vkUserId}`)
+  const chats = (data && data.chats) || []
+  const listEl = document.getElementById('messages-list')
+  if (!listEl) return
+  if (chats.length === 0) {
+    listEl.innerHTML = `<div class="saved-empty">Пока нет ни одного чата. Отметь «Хочу туда» на каком-нибудь месте и начни переписку с попутчиками.</div>`
+    return
+  }
+  listEl.innerHTML = chats.map(c => `
+    <div class="chat-list-row" onclick="openChatForRoom('${c.place_id}', '${c.place_name.replace(/'/g, "\\'")}', '${c.go_date}')">
+      <div style="flex:1;">
+        <div style="font-size:14px; font-weight:600;">${c.place_name}</div>
+        <div style="font-size:12px; opacity:0.6; margin-top:2px;">${c.last_message_sender || ''}: ${c.last_message_text}</div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:11px; opacity:0.5; margin-bottom:4px;">${formatChatTime(c.last_message_time)}</div>
+        ${c.unread_count > 0 ? `<div class="chat-list-unread">${c.unread_count}</div>` : ''}
+      </div>
+    </div>
+  `).join('')
+  updateMessagesBadge(chats)
+}
+
+function updateMessagesBadge(chats) {
+  const badge = document.getElementById('messages-badge')
+  if (!badge) return
+  const totalUnread = chats.reduce((sum, c) => sum + c.unread_count, 0)
+  if (totalUnread > 0) {
+    badge.textContent = totalUnread
+    badge.style.display = 'flex'
+  } else {
+    badge.style.display = 'none'
+  }
+}
+
+async function refreshMessagesBadge() {
+  if (!vkUserId) return
+  const data = await apiCall(`/api/my-chats?vk_user_id=${vkUserId}`)
+  updateMessagesBadge((data && data.chats) || [])
+}
+
 async function renderCompanions() {
   const container = document.getElementById('companions-container')
   if (!activeCompanionRoom) {
@@ -1297,7 +1404,16 @@ async function renderCompanions() {
   }).join('') + `<button class="btn-primary" style="margin-top:16px;" onclick="openChat()">💬 Общий чат места</button>`
 }
 
+let chatBackTarget = 'screen-companions'
+
 function openChat() {
+  chatBackTarget = 'screen-companions'
+  goTo('screen-chat')
+}
+
+function openChatForRoom(placeId, placeName, goDate) {
+  activeCompanionRoom = { placeId, placeName, goDate }
+  chatBackTarget = 'screen-messages'
   goTo('screen-chat')
 }
 
@@ -1305,16 +1421,26 @@ function openChat() {
 
 let chatLastId = 0
 let chatPollTimer = null
+let chatMessageCount = 0
+let chatVkSuggestShown = false
 
 function renderChatHeader() {
   if (!activeCompanionRoom) return
   document.getElementById('chat-title').textContent = activeCompanionRoom.placeName
   document.getElementById('chat-subtitle').textContent = activeCompanionRoom.goDate
+  const backBtn = document.getElementById('chat-back-btn')
+  backBtn.onclick = () => goTo(chatBackTarget)
+}
+
+function formatMessageTime(createdAt) {
+  // created_at приходит как 'YYYY-MM-DD HH:MM:SS' (UTC из SQLite)
+  const d = new Date(createdAt.replace(' ', 'T') + 'Z')
+  if (isNaN(d.getTime())) return ''
+  return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
 }
 
 function renderChatMessages(messages) {
   const list = document.getElementById('chat-messages')
-  const profile = load('profile', {})
   messages.forEach(m => {
     const mine = m.vk_user_id === vkUserId
     const row = document.createElement('div')
@@ -1322,11 +1448,31 @@ function renderChatMessages(messages) {
     row.innerHTML = `
       ${!mine ? `<div class="chat-sender">${m.sender_name || 'Гость'}</div>` : ''}
       <div class="chat-bubble">${m.text}</div>
+      <div class="chat-time">${formatMessageTime(m.created_at)}</div>
     `
     list.appendChild(row)
     chatLastId = Math.max(chatLastId, m.id)
+    chatMessageCount++
   })
   list.scrollTop = list.scrollHeight
+  if (messages.length > 0) maybeShowVkSuggest()
+}
+
+async function maybeShowVkSuggest() {
+  if (chatVkSuggestShown || chatMessageCount < 3 || !activeCompanionRoom) return
+  const { placeId, goDate } = activeCompanionRoom
+  const data = await apiCall(`/api/companions?vk_user_id=${vkUserId}&place_id=${encodeURIComponent(placeId)}&go_date=${encodeURIComponent(goDate)}`)
+  const companions = (data && data.companions) || []
+  if (companions.length === 0) return
+  chatVkSuggestShown = true
+  const linksHtml = companions.map(c =>
+    `<a href="https://vk.com/id${c.vk_user_id}" target="_blank" style="color:var(--navy); font-weight:600; text-decoration:underline;">${c.name || 'профиль ВК'}</a>`
+  ).join(', ')
+  document.getElementById('chat-vk-suggest').innerHTML = `
+    <div class="vk-suggest-banner">
+      <span>Вы уже неплохо пообщались! Теперь можно списаться напрямую в ВК: ${linksHtml}</span>
+    </div>
+  `
 }
 
 async function pollChat() {
@@ -1335,15 +1481,29 @@ async function pollChat() {
   const data = await apiCall(`/api/chat?place_id=${encodeURIComponent(placeId)}&go_date=${encodeURIComponent(goDate)}&after_id=${chatLastId}`)
   if (data && data.messages && data.messages.length) {
     renderChatMessages(data.messages)
+    markCurrentChatRead()
   }
 }
 
-function startChatPolling() {
+function markCurrentChatRead() {
+  if (!activeCompanionRoom || !vkUserId) return
+  const { placeId, goDate } = activeCompanionRoom
+  apiCall('/api/chat/read', {
+    method: 'POST',
+    body: JSON.stringify({ vk_user_id: vkUserId, place_id: placeId, go_date: goDate }),
+  })
+}
+
+async function startChatPolling() {
   stopChatPolling()
   chatLastId = 0
+  chatMessageCount = 0
+  chatVkSuggestShown = false
   document.getElementById('chat-messages').innerHTML = ''
+  document.getElementById('chat-vk-suggest').innerHTML = ''
   renderChatHeader()
-  pollChat()
+  await pollChat()
+  markCurrentChatRead()
   chatPollTimer = setInterval(pollChat, 3000)
 }
 
@@ -1539,11 +1699,13 @@ function renderProfile() {
     <div class="profile-row"><span class="label">Время</span><span>${profile.time || '—'}</span></div>
     <div class="profile-row"><span class="label">Сохранённые места</span><span>${load('saved', []).length}</span></div>
     <div class="profile-actions">
+      <button class="btn-secondary" onclick="goTo('screen-messages')" style="position:relative;">💬 Сообщения<span id="messages-badge" class="badge-count" style="display:none;"></span></button>
       <button class="btn-secondary" onclick="goTo('screen-saved')">⭐ Сохранённые места</button>
       <button class="btn-primary" onclick="retakeShortTest()">Обновить предпочтения</button>
       <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
     </div>
   `
+  refreshMessagesBadge()
 }
 
 function onAvatarSelected(event) {
