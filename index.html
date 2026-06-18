@@ -698,6 +698,7 @@ async function syncProfileToApi() {
       vk_user_id: vkUserId,
       name: profile.name || null,
       temperament: profile.temperament || null,
+      axis_scores: profile.axisScores || null,
     }),
   })
 }
@@ -1270,6 +1271,9 @@ async function renderCompanions() {
   listEl.innerHTML = companions.map(c => {
     const t = TYPES[c.temperament] || null
     const initials = (c.name || '?').charAt(0).toUpperCase()
+    const matchHtml = c.match_percent != null
+      ? `<div style="text-align:right;"><div style="font-size:14px; font-weight:600; color:var(--navy);">${c.match_percent}%</div><div style="font-size:10px; opacity:0.5;">мэтч</div></div>`
+      : `<div style="font-size:13px; color:var(--navy); font-weight:500;">Написать</div>`
     return `
       <div class="companion-row" onclick="openChat()">
         <div class="companion-avatar" style="background:${t ? t.bg : '#eee'}; color:${t ? t.color : '#888'};">${t ? t.emoji : initials}</div>
@@ -1277,7 +1281,7 @@ async function renderCompanions() {
           <div style="font-size:14px; font-weight:500;">${c.name || 'Без имени'}</div>
           <div style="font-size:12px; opacity:0.6;">${t ? t.name : 'Темперамент неизвестен'}</div>
         </div>
-        <div style="font-size:13px; color:var(--navy); font-weight:500;">Написать</div>
+        ${matchHtml}
       </div>
     `
   }).join('') + `<button class="btn-primary" style="margin-top:16px;" onclick="openChat()">💬 Общий чат места</button>`
