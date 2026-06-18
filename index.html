@@ -253,6 +253,81 @@
   }
   .name-input:focus { outline: none; border-color: var(--navy); }
   .saved-empty { text-align: center; opacity: 0.6; font-size: 14px; margin-top: 60px; }
+
+  /* Companions */
+  .companion-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    border: 1px solid #eee;
+    margin-bottom: 10px;
+  }
+  .companion-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: 600;
+    flex-shrink: 0;
+  }
+
+  /* Chat */
+  .chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow-y: auto;
+    flex: 1;
+    padding: 6px 0;
+  }
+  .chat-row { display: flex; flex-direction: column; align-items: flex-start; max-width: 80%; }
+  .chat-row.mine { align-items: flex-end; align-self: flex-end; }
+  .chat-sender { font-size: 11px; opacity: 0.5; margin-bottom: 2px; padding: 0 4px; }
+  .chat-bubble {
+    background: #f0f0f0;
+    color: var(--navy);
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .chat-row.mine .chat-bubble { background: var(--navy); color: #fff; }
+  .chat-input-row {
+    position: fixed;
+    bottom: 70px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 440px;
+    padding: 0 20px;
+    display: flex;
+    gap: 8px;
+    box-sizing: border-box;
+  }
+  .chat-input {
+    flex: 1;
+    border: 1.5px solid #e0e0e0;
+    border-radius: 999px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .chat-input:focus { outline: none; border-color: var(--navy); }
+  .chat-send-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--navy);
+    color: #fff;
+    border: none;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
   .profile-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 
   /* Avatar */
@@ -490,6 +565,25 @@
     <div id="saved-container"></div>
   </div>
 
+  <!-- COMPANIONS -->
+  <div id="screen-companions" class="screen">
+    <div id="companions-container"></div>
+  </div>
+
+  <!-- CHAT -->
+  <div id="screen-chat" class="screen" style="padding-bottom:90px;">
+    <button class="btn-secondary" style="margin-bottom:12px;" onclick="goTo('screen-companions')">← Назад</button>
+    <div style="margin-bottom:10px;">
+      <div id="chat-title" style="font-size:17px; font-weight:600;"></div>
+      <div id="chat-subtitle" style="font-size:12px; opacity:0.6;"></div>
+    </div>
+    <div id="chat-messages" class="chat-messages"></div>
+    <div class="chat-input-row">
+      <input id="chat-input" class="chat-input" type="text" placeholder="Написать сообщение..." onkeydown="if(event.key==='Enter') sendChatMessage()">
+      <button class="chat-send-btn" onclick="sendChatMessage()">→</button>
+    </div>
+  </div>
+
   <!-- BOTTOM NAV -->
   <nav id="bottom-nav">
     <button onclick="goTo('screen-home')" class="nav-btn" data-screen="screen-home">🏠<span>Главная</span></button>
@@ -517,6 +611,62 @@
 <script>
 if (window.vkBridge) {
   vkBridge.send('VKWebAppInit')
+}
+
+/* ---------- API / VK IDENTITY ---------- */
+
+const API_BASE_URL = 'https://YOUR-BACKEND-HOST.example.com'
+
+let vkUserId = null
+
+async function initVkUser() {
+  if (window.vkBridge) {
+    try {
+      const info = await vkBridge.send('VKWebAppGetUserInfo')
+      vkUserId = info.id
+      const profile = load('profile', {})
+      if (!profile.name && info.first_name) {
+        profile.name = info.first_name
+        save('profile', profile)
+      }
+    } catch (e) {
+      vkUserId = null
+    }
+  }
+  if (!vkUserId) {
+    // Браузер вне ВК — для разработки используем стабильный локальный ID
+    vkUserId = load('local_uid', null)
+    if (!vkUserId) {
+      vkUserId = Math.floor(Math.random() * 1e9)
+      save('local_uid', vkUserId)
+    }
+  }
+}
+
+async function apiCall(path, options = {}) {
+  try {
+    const res = await fetch(API_BASE_URL + path, {
+      headers: { 'Content-Type': 'application/json' },
+      ...options,
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch (e) {
+    return null
+  }
+}
+
+async function syncProfileToApi() {
+  if (!vkUserId) return
+  const profile = load('profile', {})
+  await apiCall('/api/profile', {
+    method: 'POST',
+    body: JSON.stringify({
+      vk_user_id: vkUserId,
+      name: profile.name || null,
+      temperament: profile.temperament || null,
+    }),
+  })
 }
 
 /* ---------- DATA ---------- */
@@ -762,6 +912,9 @@ function goTo(screenId) {
   if (screenId === 'screen-routes') renderRoute()
   if (screenId === 'screen-profile') renderProfile()
   if (screenId === 'screen-saved') renderSaved()
+  if (screenId === 'screen-companions') renderCompanions()
+  if (screenId === 'screen-chat') startChatPolling()
+  if (screenId !== 'screen-chat') stopChatPolling()
   if (screenId === 'screen-home') {
     const name = load('profile', {}).name
     document.getElementById('home-greeting').textContent = name ? `Привет, ${name}! 👋` : 'Привет! 👋'
@@ -803,6 +956,7 @@ function onNameChange(value) {
   const profile = load('profile', {})
   profile.name = value
   save('profile', profile)
+  syncProfileToApi()
 }
 
 /* ---------- ONBOARDING ---------- */
@@ -864,6 +1018,7 @@ function showResult(temperament) {
   document.getElementById('result-desc').textContent = t.desc
   document.getElementById('result-btn-short').style.background = t.color
   showScreen('screen-result')
+  syncProfileToApi()
 }
 
 function goToShortTest() {
@@ -980,9 +1135,139 @@ function closeModalOnOverlay(e) {
   if (e.target.id === 'modal-overlay') closeModal()
 }
 
-function confirmDate(label) {
+let activeCompanionRoom = null
+
+async function confirmDate(label) {
   closeModal()
+  const place = currentPlace
+  if (!place) return
   showToast('Сохранили!')
+  await apiCall('/api/want-to-go', {
+    method: 'POST',
+    body: JSON.stringify({
+      vk_user_id: vkUserId,
+      place_id: place.id,
+      place_name: place.name,
+      go_date: label,
+    }),
+  })
+  activeCompanionRoom = { placeId: place.id, placeName: place.name, goDate: label }
+  setTimeout(() => goTo('screen-companions'), 600)
+}
+
+async function renderCompanions() {
+  const container = document.getElementById('companions-container')
+  if (!activeCompanionRoom) {
+    container.innerHTML = `
+      <button class="btn-secondary" style="margin-bottom:16px;" onclick="goTo('screen-places')">← Назад к местам</button>
+      <div class="saved-empty">Сначала отметь «Хочу туда» на каком-нибудь месте.</div>
+    `
+    return
+  }
+  const { placeId, placeName, goDate } = activeCompanionRoom
+  container.innerHTML = `
+    <button class="btn-secondary" style="margin-bottom:16px;" onclick="goTo('screen-places')">← Назад к местам</button>
+    <div class="question-title" style="font-size:20px; margin-bottom:4px;">${placeName}</div>
+    <div style="font-size:13px; opacity:0.6; margin-bottom:16px;">${goDate}</div>
+    <div id="companions-list">Загружаем...</div>
+  `
+  const data = await apiCall(`/api/companions?vk_user_id=${vkUserId}&place_id=${encodeURIComponent(placeId)}&go_date=${encodeURIComponent(goDate)}`)
+  const companions = (data && data.companions) || []
+  const listEl = document.getElementById('companions-list')
+  if (!listEl) return
+  if (companions.length === 0) {
+    listEl.innerHTML = `<div class="saved-empty" style="margin-top:30px;">Пока никто ещё не отметился на это место и дату. Загляни сюда позже — как только кто-то ещё нажмёт «Хочу туда», вы увидите друг друга здесь.</div>`
+    return
+  }
+  listEl.innerHTML = companions.map(c => {
+    const t = TYPES[c.temperament] || null
+    const initials = (c.name || '?').charAt(0).toUpperCase()
+    return `
+      <div class="companion-row" onclick="openChat()">
+        <div class="companion-avatar" style="background:${t ? t.bg : '#eee'}; color:${t ? t.color : '#888'};">${t ? t.emoji : initials}</div>
+        <div style="flex:1;">
+          <div style="font-size:14px; font-weight:500;">${c.name || 'Без имени'}</div>
+          <div style="font-size:12px; opacity:0.6;">${t ? t.name : 'Темперамент неизвестен'}</div>
+        </div>
+        <div style="font-size:13px; color:var(--navy); font-weight:500;">Написать</div>
+      </div>
+    `
+  }).join('') + `<button class="btn-primary" style="margin-top:16px;" onclick="openChat()">💬 Общий чат места</button>`
+}
+
+function openChat() {
+  goTo('screen-chat')
+}
+
+/* ---------- CHAT ---------- */
+
+let chatLastId = 0
+let chatPollTimer = null
+
+function renderChatHeader() {
+  if (!activeCompanionRoom) return
+  document.getElementById('chat-title').textContent = activeCompanionRoom.placeName
+  document.getElementById('chat-subtitle').textContent = activeCompanionRoom.goDate
+}
+
+function renderChatMessages(messages) {
+  const list = document.getElementById('chat-messages')
+  const profile = load('profile', {})
+  messages.forEach(m => {
+    const mine = m.vk_user_id === vkUserId
+    const row = document.createElement('div')
+    row.className = 'chat-row' + (mine ? ' mine' : '')
+    row.innerHTML = `
+      ${!mine ? `<div class="chat-sender">${m.sender_name || 'Гость'}</div>` : ''}
+      <div class="chat-bubble">${m.text}</div>
+    `
+    list.appendChild(row)
+    chatLastId = Math.max(chatLastId, m.id)
+  })
+  list.scrollTop = list.scrollHeight
+}
+
+async function pollChat() {
+  if (!activeCompanionRoom) return
+  const { placeId, goDate } = activeCompanionRoom
+  const data = await apiCall(`/api/chat?place_id=${encodeURIComponent(placeId)}&go_date=${encodeURIComponent(goDate)}&after_id=${chatLastId}`)
+  if (data && data.messages && data.messages.length) {
+    renderChatMessages(data.messages)
+  }
+}
+
+function startChatPolling() {
+  stopChatPolling()
+  chatLastId = 0
+  document.getElementById('chat-messages').innerHTML = ''
+  renderChatHeader()
+  pollChat()
+  chatPollTimer = setInterval(pollChat, 3000)
+}
+
+function stopChatPolling() {
+  if (chatPollTimer) clearInterval(chatPollTimer)
+  chatPollTimer = null
+}
+
+async function sendChatMessage() {
+  const input = document.getElementById('chat-input')
+  const text = input.value.trim()
+  if (!text || !activeCompanionRoom) return
+  input.value = ''
+  const profile = load('profile', {})
+  const { placeId, goDate } = activeCompanionRoom
+  await apiCall('/api/chat', {
+    method: 'POST',
+    body: JSON.stringify({
+      vk_user_id: vkUserId,
+      sender_name: profile.name || 'Гость',
+      place_id: placeId,
+      go_date: goDate,
+      text,
+    }),
+  })
+  pollChat()
 }
 
 /* ---------- TOAST ---------- */
@@ -1143,6 +1428,7 @@ function earlyAccess() {
 
 const profile = load('profile', {})
 if (profile.temperament) applyTheme(profile.temperament)
+initVkUser().then(syncProfileToApi)
 if (profile.onboarding_done) {
   showScreen('screen-splash')
   setTimeout(() => {
