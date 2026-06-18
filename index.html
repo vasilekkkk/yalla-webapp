@@ -343,19 +343,24 @@
     width: 88px;
     height: 88px;
     border-radius: 50%;
+    position: relative;
+  }
+  .avatar-photo-inner {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
     background-size: cover;
     background-position: center;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 36px;
-    position: relative;
     overflow: hidden;
   }
   .avatar-edit-badge {
     position: absolute;
-    bottom: 0;
-    right: 0;
+    bottom: -2px;
+    right: -2px;
     width: 28px;
     height: 28px;
     border-radius: 50%;
@@ -366,6 +371,7 @@
     justify-content: center;
     font-size: 14px;
     border: 2px solid #fff;
+    z-index: 2;
   }
   .avatar-hint { font-size: 12px; opacity: 0.6; }
 
@@ -455,6 +461,7 @@
     <div class="progress" id="long-test-progress"></div>
     <div id="long-test-steps"></div>
     <div class="top-spacer"></div>
+    <button class="btn-secondary" id="long-test-back" style="margin-bottom:10px; display:none;" onclick="longTestPrev()">← Назад</button>
     <button class="btn-primary" id="long-test-next" disabled onclick="longTestNext()">Далее</button>
   </div>
 
@@ -520,6 +527,7 @@
     </div>
 
     <div class="top-spacer"></div>
+    <button class="btn-secondary" id="onboarding-back" style="margin-bottom:10px; display:none;" onclick="onboardingPrev()">← Назад</button>
     <button class="btn-primary" id="onboarding-next" disabled onclick="onboardingNext()">Далее</button>
   </div>
 
@@ -539,6 +547,7 @@
       <span class="icon">🗺</span>
       <span>Получить маршрут</span>
     </div>
+    <button class="btn-secondary" style="margin-bottom:14px;" onclick="retakeShortTest()">🔄 Пройти тест на места заново</button>
     <div class="banner">
       <div class="banner-text">Ялла скоро запускается как полноценное приложение</div>
       <button class="btn-primary" onclick="earlyAccess()">Хочу ранний доступ</button>
@@ -548,6 +557,7 @@
   <!-- PLACES -->
   <div id="screen-places" class="screen">
     <div id="place-container"></div>
+    <div id="place-collections" style="margin-top:8px;"></div>
   </div>
 
   <!-- ROUTES -->
@@ -841,10 +851,11 @@ function renderLongTestStep() {
   ).join('')
 
   const stepsEl = document.getElementById('long-test-steps')
+  const currentScore = longTestAnswers[longTestStep]
   stepsEl.innerHTML = `
     <div class="question-title">${q.title}</div>
     <div class="options">
-      ${q.options.map((o, i) => `<button class="option-btn" data-index="${i}">${o.label}</button>`).join('')}
+      ${q.options.map((o, i) => `<button class="option-btn${o.score === currentScore ? ' selected' : ''}" data-index="${i}">${o.label}</button>`).join('')}
     </div>
   `
   stepsEl.querySelectorAll('.option-btn').forEach(btn => {
@@ -856,6 +867,14 @@ function renderLongTestStep() {
     })
   })
   document.getElementById('long-test-next').disabled = longTestAnswers[longTestStep] === undefined
+  document.getElementById('long-test-back').style.display = longTestStep > 0 ? 'block' : 'none'
+}
+
+function longTestPrev() {
+  if (longTestStep > 0) {
+    longTestStep--
+    renderLongTestStep()
+  }
 }
 
 function longTestNext() {
@@ -921,7 +940,7 @@ function goTo(screenId) {
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.screen === screenId)
   })
-  if (screenId === 'screen-places') renderPlace()
+  if (screenId === 'screen-places') { renderPlace(); renderPlaceCollections() }
   if (screenId === 'screen-routes') renderRoute()
   if (screenId === 'screen-profile') renderProfile()
   if (screenId === 'screen-saved') renderSaved()
@@ -995,6 +1014,17 @@ function updateProgress() {
 }
 updateProgress()
 
+function onboardingPrev() {
+  if (currentStep > 1) {
+    document.getElementById('step-' + currentStep).style.display = 'none'
+    currentStep--
+    document.getElementById('step-' + currentStep).style.display = 'flex'
+    updateProgress()
+    document.getElementById('onboarding-next').disabled = false
+    document.getElementById('onboarding-back').style.display = currentStep > 1 ? 'block' : 'none'
+  }
+}
+
 function onboardingNext() {
   if (currentStep < 4) {
     document.getElementById('step-' + currentStep).style.display = 'none'
@@ -1004,6 +1034,7 @@ function onboardingNext() {
     const stepEl = document.getElementById('step-' + currentStep)
     const q = stepEl.querySelector('.options').dataset.question
     document.getElementById('onboarding-next').disabled = !answers[q]
+    document.getElementById('onboarding-back').style.display = currentStep > 1 ? 'block' : 'none'
   } else {
     const profile = load('profile', {})
     profile.mood = answers.mood
@@ -1121,6 +1152,44 @@ function renderPlace() {
         <button class="btn-secondary" onclick="openDateModal()">🗓 Хочу туда</button>
       </div>
     </div>
+  `
+}
+
+const FORMAT_LABELS = {
+  'прогулка': '🚶 Прогулки',
+  'необычное': '✨ Необычные места',
+  'кафе': '☕ Кафе',
+  'лекция': '🎤 Лекции',
+  'выставка': '🖼 Выставки и музеи',
+  'кино': '🎬 Кино',
+}
+
+function renderPlaceCollections() {
+  const formats = [...new Set(PLACES.map(p => p.format))]
+  const sectionsHtml = formats.map(format => {
+    const places = PLACES.filter(p => p.format === format)
+    const cardsHtml = places.map(p => `
+      <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
+        ${placePhotoHtml(p)}
+        ${saveStarHtml(p.id)}
+        <div class="place-title">📍 ${p.name}</div>
+        <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
+        <div class="divider"></div>
+        <div class="place-why">${p.why}</div>
+        <div class="divider"></div>
+        <div class="place-duration">⏱ ${p.duration}</div>
+      </div>
+    `).join('')
+    return `
+      <div class="question-title" style="font-size:17px; margin-bottom:12px;">${FORMAT_LABELS[format] || format}</div>
+      ${cardsHtml}
+    `
+  }).join('')
+
+  document.getElementById('place-collections').innerHTML = `
+    <div class="divider" style="margin:24px 0;"></div>
+    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Все места</div>
+    ${sectionsHtml}
   `
 }
 
@@ -1397,8 +1466,8 @@ function renderProfile() {
     : `background-color:${t.bg};`
   document.getElementById('profile-container').innerHTML = `
     <div class="avatar-wrap">
-      <div class="avatar-circle" style="${avatarStyle}" onclick="document.getElementById('avatar-input').click()">
-        ${avatar ? '' : t.emoji}
+      <div class="avatar-circle" onclick="document.getElementById('avatar-input').click()">
+        <div class="avatar-photo-inner" style="${avatarStyle}">${avatar ? '' : t.emoji}</div>
         <div class="avatar-edit-badge">✎</div>
       </div>
       <div class="avatar-hint">Нажми, чтобы поставить своё фото</div>
@@ -1412,7 +1481,7 @@ function renderProfile() {
     <div class="profile-row"><span class="label">Сохранённые места</span><span>${load('saved', []).length}</span></div>
     <div class="profile-actions">
       <button class="btn-secondary" onclick="goTo('screen-saved')">⭐ Сохранённые места</button>
-      <button class="btn-primary" onclick="resetOnboarding()">Обновить предпочтения</button>
+      <button class="btn-primary" onclick="retakeShortTest()">Обновить предпочтения</button>
       <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
     </div>
   `
@@ -1429,17 +1498,16 @@ function onAvatarSelected(event) {
   reader.readAsDataURL(file)
 }
 
-function resetOnboarding() {
-  save('profile', {})
-  document.querySelectorAll('.option-btn').forEach(b => b.classList.remove('selected'))
+function retakeShortTest() {
+  document.querySelectorAll('#screen-onboarding .option-btn').forEach(b => b.classList.remove('selected'))
   for (const k in answers) delete answers[k]
   currentStep = 1
   document.querySelectorAll('.step').forEach(s => s.style.display = 'none')
   document.getElementById('step-1').style.display = 'flex'
   document.getElementById('onboarding-next').disabled = true
+  document.getElementById('onboarding-back').style.display = 'none'
   updateProgress()
-  document.getElementById('bottom-nav').style.display = 'none'
-  startLongTest()
+  showScreen('screen-onboarding')
 }
 
 /* ---------- EARLY ACCESS ---------- */
