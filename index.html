@@ -1827,6 +1827,7 @@ function renderProfile() {
       <button class="btn-primary" onclick="retakeShortTest()">Обновить предпочтения</button>
       <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
       <button class="btn-secondary" onclick="openSupportModal()">🆘 Поддержка</button>
+      <button class="btn-secondary" onclick="resetEverything()" style="color:#999; border-color:#ddd;">Сбросить всё и начать заново</button>
     </div>
   `
   refreshMessagesBadge()
@@ -1841,6 +1842,17 @@ function onAvatarSelected(event) {
     renderProfile()
   }
   reader.readAsDataURL(file)
+}
+
+function resetEverything() {
+  if (!confirm('Сбросить весь профиль (тесты, имя, фото, сохранёнки) и начать с чистого листа?')) return
+  localStorage.removeItem('yalla_profile')
+  localStorage.removeItem('yalla_avatar')
+  localStorage.removeItem('yalla_seen')
+  localStorage.removeItem('yalla_saved')
+  localStorage.removeItem('yalla_early_access')
+  document.getElementById('bottom-nav').style.display = 'none'
+  location.reload()
 }
 
 function retakeShortTest() {
