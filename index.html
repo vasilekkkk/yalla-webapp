@@ -1146,6 +1146,8 @@ function onboardingNext() {
     profile.onboarding_done = true
     save('profile', profile)
     currentPlace = null
+    placesTabFormat = ''
+    currentRouteId = null
     ymGoal('short_test_completed')
     finishOnboarding('screen-home')
   }
