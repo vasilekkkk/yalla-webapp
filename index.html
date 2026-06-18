@@ -975,18 +975,7 @@ function renderSaved() {
     `
     return
   }
-  const cardsHtml = savedPlaces.map(p => `
-    <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
-      ${placePhotoHtml(p)}
-      ${saveStarHtml(p.id)}
-      <div class="place-title">📍 ${p.name}</div>
-      <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
-      <div class="divider"></div>
-      <div class="place-why">${p.why}</div>
-      <div class="divider"></div>
-      <div class="place-duration">⏱ ${p.duration}</div>
-    </div>
-  `).join('')
+  const cardsHtml = savedPlaces.map(p => placeCardHtml(p)).join('')
   container.innerHTML = `
     <button class="btn-secondary" style="margin-bottom:16px;" onclick="goTo('screen-profile')">← Назад в профиль</button>
     <div class="question-title" style="font-size:20px; margin-bottom:14px;">Сохранённые места</div>
@@ -1428,7 +1417,12 @@ function getRoute() {
     r.time === profile.time && r.mood.includes(profile.mood)
   )
   const pool = matching.length > 0 ? matching : ROUTES
-  const choices = pool.filter(r => r.id !== currentRouteId)
+  let choices = pool.filter(r => r.id !== currentRouteId)
+  // Если под текущий вайб+время есть только один маршрут, на "Другой маршрут"
+  // показываем случайный из всех остальных, а не повторяем тот же самый
+  if (choices.length === 0) {
+    choices = ROUTES.filter(r => r.id !== currentRouteId)
+  }
   const finalPool = choices.length > 0 ? choices : pool
   return finalPool[Math.floor(Math.random() * finalPool.length)]
 }
@@ -1455,14 +1449,53 @@ function renderRoute() {
   `
 }
 
-function shareRoute(routeId) {
-  const text = 'Маршрут от Ялла: ' + routeId
+function copyTextFallback(text) {
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.style.position = 'fixed'
+  textarea.style.opacity = '0'
+  document.body.appendChild(textarea)
+  textarea.focus()
+  textarea.select()
+  let ok = false
+  try {
+    ok = document.execCommand('copy')
+  } catch (e) {
+    ok = false
+  }
+  document.body.removeChild(textarea)
+  return ok
+}
+
+async function shareRoute(routeId) {
+  const route = ROUTES.find(r => r.id === routeId)
+  if (!route) return
+  const pointsText = route.points.map((pt, i) => `${i + 1}. ${pt.name} — ${pt.desc}`).join('\n')
+  const text = `Маршрут «${route.name}» от Ялла\n${route.desc}\n\n${pointsText}\n\n💡 ${route.tip}`
+
   if (navigator.share) {
-    navigator.share({ title: 'Ялла', text }).catch(() => {})
-  } else if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(() => showToast('Ссылка скопирована'))
+    try {
+      await navigator.share({ title: 'Ялла', text })
+      return
+    } catch (e) {
+      // пользователь отменил или Share API недоступен — пробуем буфер обмена
+    }
+  }
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text)
+      showToast('Маршрут скопирован')
+      return
+    }
+  } catch (e) {
+    // переходим к запасному варианту
+  }
+
+  if (copyTextFallback(text)) {
+    showToast('Маршрут скопирован')
   } else {
-    showToast('Ссылка скопирована')
+    showToast('Не удалось скопировать')
   }
 }
 
