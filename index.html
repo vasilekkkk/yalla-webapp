@@ -1145,6 +1145,7 @@ function onboardingNext() {
     profile.time = answers.time
     profile.onboarding_done = true
     save('profile', profile)
+    currentPlace = null
     ymGoal('short_test_completed')
     finishOnboarding('screen-home')
   }
