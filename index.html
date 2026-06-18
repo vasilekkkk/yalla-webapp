@@ -1117,7 +1117,12 @@ function likePlace() {
     seen.push(currentPlace.id)
     save('seen', seen)
   }
-  showToast('Сохранили в нравится')
+  const saved = load('saved', [])
+  if (!saved.includes(currentPlace.id)) {
+    saved.push(currentPlace.id)
+    save('saved', saved)
+  }
+  showToast('Сохранили в сохранённые места')
   setTimeout(renderPlace, 2000)
 }
 
