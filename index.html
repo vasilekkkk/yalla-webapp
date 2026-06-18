@@ -1446,6 +1446,10 @@ function resetOnboarding() {
 
 function earlyAccess() {
   save('early_access', true)
+  apiCall('/api/early-access', {
+    method: 'POST',
+    body: JSON.stringify({ vk_user_id: vkUserId }),
+  })
   alert('Записали! Сообщим при запуске 🎉')
 }
 
