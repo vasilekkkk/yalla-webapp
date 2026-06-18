@@ -1321,15 +1321,22 @@ function setAllPlacesFilter(format) {
 
 /* ---------- ROUTES ---------- */
 
+let currentRouteId = null
+
 function getRoute() {
   const profile = load('profile', {})
-  return ROUTES.find(r =>
+  const matching = ROUTES.filter(r =>
     r.time === profile.time && r.mood.includes(profile.mood)
-  ) || ROUTES[0]
+  )
+  const pool = matching.length > 0 ? matching : ROUTES
+  const choices = pool.filter(r => r.id !== currentRouteId)
+  const finalPool = choices.length > 0 ? choices : pool
+  return finalPool[Math.floor(Math.random() * finalPool.length)]
 }
 
 function renderRoute() {
   const r = getRoute()
+  currentRouteId = r.id
   const pointsHtml = r.points.map((pt, i) => `
     <div class="route-point"><b>${i + 1}. ${pt.name}</b> — ${pt.desc}</div>
   `).join('')
