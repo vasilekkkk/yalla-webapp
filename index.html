@@ -173,6 +173,22 @@
     font-size: 40px;
     font-weight: 600;
   }
+  .save-star {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255,255,255,0.9);
+    font-size: 20px;
+    color: var(--navy);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .save-star.filled { color: var(--yellow, #F8D16C); }
   .place-card.has-photo .place-title,
   .place-card.has-photo .place-sub,
   .place-card.has-photo .place-why,
@@ -223,6 +239,20 @@
     font-size: 15px;
   }
   .profile-row .label { opacity: 0.6; }
+  .name-input {
+    width: 100%;
+    border: 1.5px solid #e0e0e0;
+    border-radius: var(--radius-sm);
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--navy);
+    margin-bottom: 16px;
+    font-family: inherit;
+  }
+  .name-input:focus { outline: none; border-color: var(--navy); }
+  .saved-empty { text-align: center; opacity: 0.6; font-size: 14px; margin-top: 60px; }
   .profile-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 24px; }
 
   /* Avatar */
@@ -424,7 +454,7 @@
 
   <!-- HOME -->
   <div id="screen-home" class="screen">
-    <div class="greeting">Привет! 👋</div>
+    <div class="greeting" id="home-greeting">Привет! 👋</div>
     <div class="home-card" onclick="goTo('screen-places')">
       <span class="icon">📍</span>
       <span>Найти место</span>
@@ -453,6 +483,11 @@
   <div id="screen-profile" class="screen">
     <div id="profile-container"></div>
     <input type="file" id="avatar-input" accept="image/*" style="display:none;" onchange="onAvatarSelected(event)">
+  </div>
+
+  <!-- SAVED PLACES -->
+  <div id="screen-saved" class="screen">
+    <div id="saved-container"></div>
   </div>
 
   <!-- BOTTOM NAV -->
@@ -726,6 +761,48 @@ function goTo(screenId) {
   if (screenId === 'screen-places') renderPlace()
   if (screenId === 'screen-routes') renderRoute()
   if (screenId === 'screen-profile') renderProfile()
+  if (screenId === 'screen-saved') renderSaved()
+  if (screenId === 'screen-home') {
+    const name = load('profile', {}).name
+    document.getElementById('home-greeting').textContent = name ? `Привет, ${name}! 👋` : 'Привет! 👋'
+  }
+}
+
+function renderSaved() {
+  const savedIds = load('saved', [])
+  const savedPlaces = PLACES.filter(p => savedIds.includes(p.id))
+  const container = document.getElementById('saved-container')
+  if (savedPlaces.length === 0) {
+    container.innerHTML = `
+      <button class="btn-secondary" style="margin-bottom:16px;" onclick="goTo('screen-profile')">← Назад в профиль</button>
+      <div class="question-title" style="font-size:20px; margin-bottom:6px;">Сохранённые места</div>
+      <div class="saved-empty">Здесь появятся места, которые ты отметишь звёздочкой ⭐</div>
+    `
+    return
+  }
+  const cardsHtml = savedPlaces.map(p => `
+    <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
+      ${placePhotoHtml(p)}
+      ${saveStarHtml(p.id)}
+      <div class="place-title">📍 ${p.name}</div>
+      <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
+      <div class="divider"></div>
+      <div class="place-why">${p.why}</div>
+      <div class="divider"></div>
+      <div class="place-duration">⏱ ${p.duration}</div>
+    </div>
+  `).join('')
+  container.innerHTML = `
+    <button class="btn-secondary" style="margin-bottom:16px;" onclick="goTo('screen-profile')">← Назад в профиль</button>
+    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Сохранённые места</div>
+    ${cardsHtml}
+  `
+}
+
+function onNameChange(value) {
+  const profile = load('profile', {})
+  profile.name = value
+  save('profile', profile)
 }
 
 /* ---------- ONBOARDING ---------- */
@@ -772,8 +849,15 @@ function onboardingNext() {
   }
 }
 
+function applyTheme(temperament) {
+  const t = TYPES[temperament]
+  document.documentElement.style.setProperty('--navy', t.color)
+  document.documentElement.style.setProperty('--teal', t.bg)
+}
+
 function showResult(temperament) {
   const t = TYPES[temperament]
+  applyTheme(temperament)
   document.getElementById('screen-result').style.background = t.bg
   document.getElementById('result-emoji').textContent = t.emoji
   document.getElementById('result-name').textContent = t.name
@@ -821,14 +905,42 @@ function placePhotoHtml(p) {
     : `<div class="place-photo-placeholder">${p.name.charAt(0)}</div>`
 }
 
+function isSaved(id) {
+  return load('saved', []).includes(id)
+}
+
+function saveStarHtml(id) {
+  const filled = isSaved(id)
+  return `<button class="save-star${filled ? ' filled' : ''}" onclick="toggleSavePlace('${id}', event)">${filled ? '★' : '☆'}</button>`
+}
+
+function toggleSavePlace(id, event) {
+  if (event) event.stopPropagation()
+  const saved = load('saved', [])
+  const idx = saved.indexOf(id)
+  if (idx === -1) {
+    saved.push(id)
+    showToast('Сохранено в избранное')
+  } else {
+    saved.splice(idx, 1)
+  }
+  save('saved', saved)
+  const btn = event && event.target
+  if (btn && btn.classList.contains('save-star')) {
+    btn.textContent = idx === -1 ? '★' : '☆'
+    btn.classList.toggle('filled', idx === -1)
+  }
+}
+
 let currentPlace = null
 
 function renderPlace() {
   currentPlace = getNextPlace()
   const p = currentPlace
   document.getElementById('place-container').innerHTML = `
-    <div class="place-card has-photo">
+    <div class="place-card has-photo" style="position:relative;">
       ${placePhotoHtml(p)}
+      ${saveStarHtml(p.id)}
       <div class="place-title">📍 ${p.name}</div>
       <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
       <div class="divider"></div>
@@ -898,8 +1010,9 @@ function renderAllPlaces() {
   `
 
   const cardsHtml = filtered.map(p => `
-    <div class="place-card has-photo" style="margin-bottom:14px;">
+    <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
       ${placePhotoHtml(p)}
+      ${saveStarHtml(p.id)}
       <div class="place-title">📍 ${p.name}</div>
       <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
       <div class="divider"></div>
@@ -980,12 +1093,15 @@ function renderProfile() {
       </div>
       <div class="avatar-hint">Нажми, чтобы поставить своё фото</div>
     </div>
+    <input id="name-input" class="name-input" type="text" placeholder="Как тебя зовут?" value="${profile.name || ''}" maxlength="30" oninput="onNameChange(this.value)">
     <div class="badge" style="background:${t.bg}; color:${t.color};">${t.emoji} ${t.name}</div>
     <div class="profile-row"><span class="label">Вайб</span><span>${profile.mood || '—'}</span></div>
     <div class="profile-row"><span class="label">Стремление</span><span>${profile.goal || '—'}</span></div>
     <div class="profile-row"><span class="label">Формат</span><span>${profile.format || '—'}</span></div>
     <div class="profile-row"><span class="label">Время</span><span>${profile.time || '—'}</span></div>
+    <div class="profile-row"><span class="label">Сохранённые места</span><span>${load('saved', []).length}</span></div>
     <div class="profile-actions">
+      <button class="btn-secondary" onclick="goTo('screen-saved')">⭐ Сохранённые места</button>
       <button class="btn-primary" onclick="resetOnboarding()">Обновить предпочтения</button>
       <button class="btn-secondary" onclick="earlyAccess()">Хочу ранний доступ</button>
     </div>
@@ -1026,6 +1142,7 @@ function earlyAccess() {
 /* ---------- INIT ---------- */
 
 const profile = load('profile', {})
+if (profile.temperament) applyTheme(profile.temperament)
 if (profile.onboarding_done) {
   showScreen('screen-splash')
   setTimeout(() => {
