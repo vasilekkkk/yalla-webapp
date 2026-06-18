@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Ялла</title>
+
+<!-- Yandex.Metrika counter -->
+<script type="text/javascript">
+    (function(m,e,t,r,i,k,a){
+        m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+        m[i].l=1*new Date();
+        for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+        k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+    })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=109965863', 'ym');
+
+    ym(109965863, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true});
+</script>
+<noscript><div><img src="https://mc.yandex.ru/watch/109965863" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+<!-- /Yandex.Metrika counter -->
+
 <script src="https://unpkg.com/@vkontakte/vk-bridge/dist/browser.min.js"></script>
 <style>
   :root {
@@ -600,11 +615,11 @@
   <!-- HOME -->
   <div id="screen-home" class="screen">
     <div class="greeting" id="home-greeting">Привет! 👋</div>
-    <div class="home-card" onclick="goTo('screen-places')">
+    <div class="home-card" onclick="ymGoal('find_place'); goTo('screen-places')">
       <span class="icon">📍</span>
       <span>Найти место</span>
     </div>
-    <div class="home-card" onclick="goTo('screen-routes')">
+    <div class="home-card" onclick="ymGoal('get_route'); goTo('screen-routes')">
       <span class="icon">🗺</span>
       <span>Получить маршрут</span>
     </div>
@@ -710,6 +725,10 @@
 <script>
 if (window.vkBridge) {
   vkBridge.send('VKWebAppInit')
+}
+
+function ymGoal(name, params) {
+  if (window.ym) ym(109965863, 'reachGoal', name, params || {})
 }
 
 /* ---------- API / VK IDENTITY ---------- */
@@ -984,6 +1003,7 @@ function longTestNext() {
     profile.temperament = temperament
     profile.axisScores = axisScores
     save('profile', profile)
+    ymGoal('long_test_completed', { temperament })
     showResult(temperament)
   }
 }
@@ -1115,6 +1135,7 @@ function onboardingNext() {
     profile.time = answers.time
     profile.onboarding_done = true
     save('profile', profile)
+    ymGoal('short_test_completed')
     finishOnboarding('screen-home')
   }
 }
@@ -1237,6 +1258,7 @@ function placeCardHtml(p, opts = {}) {
 
 function rerollRecommendation() {
   currentPlace = getNextPlace(currentPlace ? currentPlace.id : null)
+  ymGoal('show_another_place')
   renderPlacesTab()
 }
 
@@ -1282,6 +1304,7 @@ function likePlaceById(id) {
     save('saved', saved)
   }
   showToast('Сохранили в сохранённые места')
+  ymGoal('save_place', { place_id: id })
 }
 
 /* ---------- MODAL / DATE ---------- */
@@ -1322,6 +1345,7 @@ async function confirmDate(label) {
   })
   if (!result) return // apiCall уже показал тост с причиной ошибки
   showToast('Сохранили!')
+  ymGoal('want_to_go', { place_id: place.id, go_date: label })
   activeCompanionRoom = { placeId: place.id, placeName: place.name, goDate: label }
   setTimeout(() => goTo('screen-companions'), 600)
 }
@@ -1454,6 +1478,7 @@ function openPrivateChat(peerId, peerName) {
   currentChatPeerId = peerId
   currentChatPeerName = peerName
   chatBackTarget = 'screen-companions'
+  ymGoal('open_private_chat', { peer_id: peerId })
   goTo('screen-chat')
 }
 
@@ -1599,6 +1624,7 @@ async function sendChatMessage() {
       peer_user_id: currentChatPeerId || null,
     }),
   })
+  ymGoal(currentChatPeerId ? 'chat_message_private' : 'chat_message_group')
   pollChat()
 }
 
@@ -1671,6 +1697,11 @@ function getRoute() {
   return finalPool[Math.floor(Math.random() * finalPool.length)]
 }
 
+function rerollRoute() {
+  ymGoal('show_another_route')
+  renderRoute()
+}
+
 function renderRoute() {
   const r = getRoute()
   currentRouteId = r.id
@@ -1687,7 +1718,7 @@ function renderRoute() {
       <div class="route-tip">💡 ${r.tip}</div>
       <div class="route-actions">
         <button class="btn-primary" onclick="shareRoute('${r.id}')">Поделиться</button>
-        <button class="btn-secondary" onclick="renderRoute()">Другой маршрут</button>
+        <button class="btn-secondary" onclick="rerollRoute()">Другой маршрут</button>
       </div>
     </div>
   `
@@ -1743,6 +1774,7 @@ async function shareRoute(routeId) {
   if (!route) return
   const pointsText = route.points.map((pt, i) => `${i + 1}. ${pt.name} — ${pt.desc}`).join('\n')
   const text = `Маршрут «${route.name}» от Ялла\n${route.desc}\n\n${pointsText}\n\n💡 ${route.tip}`
+  ymGoal('share_route', { route_id: routeId })
   await shareText(text, 'Маршрут скопирован')
 }
 
@@ -1750,6 +1782,7 @@ async function sharePlace(placeId) {
   const place = PLACES.find(p => p.id === placeId)
   if (!place) return
   const text = `«${place.name}» от Ялла\n🚇 ${place.district}, м. ${place.metro}\n\n${place.why}\n\n⏱ ${place.duration}`
+  ymGoal('share_place', { place_id: placeId })
   await shareText(text, 'Место скопировано')
 }
 
@@ -1821,6 +1854,7 @@ function earlyAccess() {
     body: JSON.stringify({ vk_user_id: vkUserId }),
   })
   alert('Записали! Сообщим при запуске 🎉')
+  ymGoal('early_access')
 }
 
 /* ---------- SUPPORT ---------- */
@@ -1847,7 +1881,10 @@ async function submitSupport() {
     method: 'POST',
     body: JSON.stringify({ vk_user_id: vkUserId, name: profile.name || null, text }),
   })
-  if (result) showToast('Спасибо! Мы получили обращение')
+  if (result) {
+    showToast('Спасибо! Мы получили обращение')
+    ymGoal('support_message')
+  }
 }
 
 /* ---------- INIT ---------- */
