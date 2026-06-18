@@ -190,6 +190,17 @@
     justify-content: center;
   }
   .save-star.filled { color: var(--yellow, #F8D16C); }
+  .recommend-badge {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    background: var(--navy);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
   .place-card.has-photo .place-title,
   .place-card.has-photo .place-sub,
   .place-card.has-photo .place-why,
@@ -557,7 +568,6 @@
   <!-- PLACES -->
   <div id="screen-places" class="screen">
     <div id="place-container"></div>
-    <div id="place-collections" style="margin-top:8px;"></div>
   </div>
 
   <!-- ROUTES -->
@@ -940,7 +950,7 @@ function goTo(screenId) {
   document.querySelectorAll('.nav-btn').forEach(b => {
     b.classList.toggle('active', b.dataset.screen === screenId)
   })
-  if (screenId === 'screen-places') { renderPlace(); renderPlaceCollections() }
+  if (screenId === 'screen-places') renderPlacesTab()
   if (screenId === 'screen-routes') renderRoute()
   if (screenId === 'screen-profile') renderProfile()
   if (screenId === 'screen-saved') renderSaved()
@@ -1132,14 +1142,17 @@ function toggleSavePlace(id, event) {
 }
 
 let currentPlace = null
+let placesTabFormat = ''
 
-function renderPlace() {
-  currentPlace = getNextPlace()
-  const p = currentPlace
-  document.getElementById('place-container').innerHTML = `
-    <div class="place-card has-photo" style="position:relative;">
+function placeCardHtml(p, opts = {}) {
+  const badge = opts.recommended
+    ? `<div class="recommend-badge">⭐ Рекомендуем вам</div>`
+    : ''
+  return `
+    <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
       ${placePhotoHtml(p)}
       ${saveStarHtml(p.id)}
+      ${badge}
       <div class="place-title">📍 ${p.name}</div>
       <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
       <div class="divider"></div>
@@ -1147,70 +1160,69 @@ function renderPlace() {
       <div class="divider"></div>
       <div class="place-duration">⏱ ${p.duration}</div>
       <div class="place-actions">
-        <button class="btn-primary" onclick="likePlace()">Нравится</button>
-        <button class="btn-secondary" onclick="renderPlace()">Показать другое</button>
-        <button class="btn-secondary" onclick="openDateModal()">🗓 Хочу туда</button>
+        <button class="btn-primary" onclick="likePlaceById('${p.id}')">Нравится</button>
+        ${opts.recommended ? `<button class="btn-secondary" onclick="rerollRecommendation()">Показать другое</button>` : ''}
+        <button class="btn-secondary" onclick="openDateModalForPlace('${p.id}')">🗓 Хочу туда</button>
       </div>
     </div>
   `
 }
 
-const FORMAT_LABELS = {
-  'прогулка': '🚶 Прогулки',
-  'необычное': '✨ Необычные места',
-  'кафе': '☕ Кафе',
-  'лекция': '🎤 Лекции',
-  'выставка': '🖼 Выставки и музеи',
-  'кино': '🎬 Кино',
+function rerollRecommendation() {
+  currentPlace = getNextPlace()
+  renderPlacesTab()
 }
 
-function renderPlaceCollections() {
+function renderPlacesTab() {
   const formats = [...new Set(PLACES.map(p => p.format))]
-  const sectionsHtml = formats.map(format => {
-    const places = PLACES.filter(p => p.format === format)
-    const cardsHtml = places.map(p => `
-      <div class="place-card has-photo" style="margin-bottom:14px; position:relative;">
-        ${placePhotoHtml(p)}
-        ${saveStarHtml(p.id)}
-        <div class="place-title">📍 ${p.name}</div>
-        <div class="place-sub">🚇 ${p.district}, м. ${p.metro}</div>
-        <div class="divider"></div>
-        <div class="place-why">${p.why}</div>
-        <div class="divider"></div>
-        <div class="place-duration">⏱ ${p.duration}</div>
-      </div>
-    `).join('')
-    return `
-      <div class="question-title" style="font-size:17px; margin-bottom:12px;">${FORMAT_LABELS[format] || format}</div>
-      ${cardsHtml}
-    `
-  }).join('')
+  const filtersHtml = `
+    <button class="option-btn${placesTabFormat === '' ? ' selected' : ''}" style="display:inline-block; width:auto; margin:0 6px 6px 0; padding:8px 14px;" onclick="setPlacesTabFilter('')">Все</button>
+    ${formats.map(f => `<button class="option-btn${placesTabFormat === f ? ' selected' : ''}" style="display:inline-block; width:auto; margin:0 6px 6px 0; padding:8px 14px;" onclick="setPlacesTabFilter('${f}')">${f}</button>`).join('')}
+  `
 
-  document.getElementById('place-collections').innerHTML = `
-    <div class="divider" style="margin:24px 0;"></div>
-    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Все места</div>
-    ${sectionsHtml}
+  let recommendedHtml = ''
+  let listPlaces = PLACES
+  if (placesTabFormat === '') {
+    if (!currentPlace) currentPlace = getNextPlace()
+    recommendedHtml = placeCardHtml(currentPlace, { recommended: true })
+    listPlaces = PLACES.filter(p => p.id !== currentPlace.id)
+  } else {
+    listPlaces = PLACES.filter(p => p.format === placesTabFormat)
+  }
+
+  document.getElementById('place-container').innerHTML = `
+    <div class="question-title" style="font-size:20px; margin-bottom:14px;">Места</div>
+    <div style="display:flex; flex-wrap:wrap; margin-bottom:16px;">${filtersHtml}</div>
+    ${recommendedHtml}
+    ${listPlaces.map(p => placeCardHtml(p)).join('')}
   `
 }
 
-function likePlace() {
+function setPlacesTabFilter(format) {
+  placesTabFormat = format
+  renderPlacesTab()
+}
+
+function likePlaceById(id) {
   const seen = load('seen', [])
-  if (!seen.includes(currentPlace.id)) {
-    seen.push(currentPlace.id)
+  if (!seen.includes(id)) {
+    seen.push(id)
     save('seen', seen)
   }
   const saved = load('saved', [])
-  if (!saved.includes(currentPlace.id)) {
-    saved.push(currentPlace.id)
+  if (!saved.includes(id)) {
+    saved.push(id)
     save('saved', saved)
   }
   showToast('Сохранили в сохранённые места')
-  setTimeout(renderPlace, 2000)
 }
 
 /* ---------- MODAL / DATE ---------- */
 
-function openDateModal() {
+let modalPlace = null
+
+function openDateModalForPlace(id) {
+  modalPlace = PLACES.find(p => p.id === id) || null
   document.getElementById('modal-overlay').classList.add('active')
 }
 
@@ -1226,7 +1238,7 @@ let activeCompanionRoom = null
 
 async function confirmDate(label) {
   closeModal()
-  const place = currentPlace
+  const place = modalPlace
   if (!place) return
   showToast('Сохранили!')
   await apiCall('/api/want-to-go', {
