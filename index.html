@@ -1207,6 +1207,7 @@ function placeCardHtml(p, opts = {}) {
         <button class="btn-primary" onclick="likePlaceById('${p.id}')">Нравится</button>
         ${opts.recommended ? `<button class="btn-secondary" onclick="rerollRecommendation()">Показать другое</button>` : ''}
         <button class="btn-secondary" onclick="openDateModalForPlace('${p.id}')">🗓 Хочу туда</button>
+        <button class="btn-secondary" onclick="sharePlace('${p.id}')">Поделиться</button>
       </div>
     </div>
   `
@@ -1641,12 +1642,7 @@ function copyTextFallback(text) {
   return ok
 }
 
-async function shareRoute(routeId) {
-  const route = ROUTES.find(r => r.id === routeId)
-  if (!route) return
-  const pointsText = route.points.map((pt, i) => `${i + 1}. ${pt.name} — ${pt.desc}`).join('\n')
-  const text = `Маршрут «${route.name}» от Ялла\n${route.desc}\n\n${pointsText}\n\n💡 ${route.tip}`
-
+async function shareText(text, successMessage) {
   if (navigator.share) {
     try {
       await navigator.share({ title: 'Ялла', text })
@@ -1659,7 +1655,7 @@ async function shareRoute(routeId) {
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       await navigator.clipboard.writeText(text)
-      showToast('Маршрут скопирован')
+      showToast(successMessage)
       return
     }
   } catch (e) {
@@ -1667,10 +1663,25 @@ async function shareRoute(routeId) {
   }
 
   if (copyTextFallback(text)) {
-    showToast('Маршрут скопирован')
+    showToast(successMessage)
   } else {
     showToast('Не удалось скопировать')
   }
+}
+
+async function shareRoute(routeId) {
+  const route = ROUTES.find(r => r.id === routeId)
+  if (!route) return
+  const pointsText = route.points.map((pt, i) => `${i + 1}. ${pt.name} — ${pt.desc}`).join('\n')
+  const text = `Маршрут «${route.name}» от Ялла\n${route.desc}\n\n${pointsText}\n\n💡 ${route.tip}`
+  await shareText(text, 'Маршрут скопирован')
+}
+
+async function sharePlace(placeId) {
+  const place = PLACES.find(p => p.id === placeId)
+  if (!place) return
+  const text = `«${place.name}» от Ялла\n🚇 ${place.district}, м. ${place.metro}\n\n${place.why}\n\n⏱ ${place.duration}`
+  await shareText(text, 'Место скопировано')
 }
 
 /* ---------- PROFILE ---------- */
