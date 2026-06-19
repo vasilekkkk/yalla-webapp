@@ -821,6 +821,11 @@ async function syncProfileToApi() {
       temperament: profile.temperament || null,
       axis_scores: profile.axisScores || null,
       source: load('source', null),
+      mood: profile.mood || null,
+      goal: profile.goal || null,
+      format: profile.format || null,
+      time_pref: profile.time || null,
+      avatar: load('avatar', null),
     }),
   })
 }
@@ -1041,6 +1046,7 @@ function longTestNext() {
     profile.temperament = temperament
     profile.axisScores = axisScores
     save('profile', profile)
+    syncProfileToApi()
     ymGoal('long_test_completed', { temperament })
     showResult(temperament)
   }
@@ -1173,6 +1179,7 @@ function onboardingNext() {
     profile.time = answers.time
     profile.onboarding_done = true
     save('profile', profile)
+    syncProfileToApi()
     const previousPlaceId = currentPlace ? currentPlace.id : null
     currentPlace = getNextPlace(previousPlaceId)
     placesTabFormat = ''
@@ -1259,8 +1266,10 @@ function toggleSavePlace(id, event) {
   if (idx === -1) {
     saved.push(id)
     showToast('Сохранено в избранное')
+    syncSavedPlace(id, true)
   } else {
     saved.splice(idx, 1)
+    syncSavedPlace(id, false)
   }
   save('saved', saved)
   const btn = event && event.target
@@ -1334,6 +1343,14 @@ function setPlacesTabFilter(format) {
   renderPlacesTab()
 }
 
+function syncSavedPlace(id, added) {
+  if (!vkUserId) return
+  apiCall(added ? '/api/saved-places/add' : '/api/saved-places/remove', {
+    method: 'POST',
+    body: JSON.stringify({ vk_user_id: vkUserId, place_id: id }),
+  })
+}
+
 function likePlaceById(id) {
   const seen = load('seen', [])
   if (!seen.includes(id)) {
@@ -1344,6 +1361,7 @@ function likePlaceById(id) {
   if (!saved.includes(id)) {
     saved.push(id)
     save('saved', saved)
+    syncSavedPlace(id, true)
   }
   showToast('Сохранили в сохранённые места')
   ymGoal('save_place', { place_id: id })
@@ -1968,44 +1986,79 @@ async function submitSupport() {
 /* ---------- INIT ---------- */
 
 let profile = {}
-try {
-  profile = load('profile', {}) || {}
-  if (profile.temperament && TYPES[profile.temperament]) applyTheme(profile.temperament)
-} catch (e) {
-  // Повреждённые данные от старой версии приложения — начинаем с чистого листа,
-  // а не зависаем на заставке навсегда
-  localStorage.removeItem('yalla_profile')
-  profile = {}
+
+async function restoreFromServerIfNeeded() {
+  // localStorage внутри VK-вебвью (iframe на vk.com) — контекст третьей стороны,
+  // браузеры всё чаще стирают его там. Если локально профиль неполный, а у нас
+  // есть реальный vk_user_id — пробуем восстановить с сервера.
+  if (!vkUserId) return
+  if (profile.onboarding_done) return // локальные данные уже есть, ничего восстанавливать не нужно
+  const data = await apiCall(`/api/profile?vk_user_id=${vkUserId}`)
+  if (!data) return
+  const p = data.profile
+  if (p && p.temperament) {
+    profile.temperament = p.temperament
+    if (p.axis_scores) {
+      try { profile.axisScores = JSON.parse(p.axis_scores) } catch (e) {}
+    }
+    if (p.name) profile.name = p.name
+    if (p.mood && p.goal && p.format && p.time_pref) {
+      profile.mood = p.mood
+      profile.goal = p.goal
+      profile.format = p.format
+      profile.time = p.time_pref
+      profile.onboarding_done = true
+    }
+    save('profile', profile)
+    if (p.avatar && !load('avatar', null)) save('avatar', p.avatar)
+  }
+  if (data.saved && data.saved.length) {
+    const localSaved = load('saved', [])
+    const merged = Array.from(new Set([...localSaved, ...data.saved]))
+    save('saved', merged)
+  }
 }
 
-try {
-  captureSource()
-} catch (e) { /* не критично для запуска */ }
+async function boot() {
+  showScreen('screen-splash')
 
-try {
-  initVkUser().then(syncProfileToApi)
-} catch (e) { /* не критично для запуска — vkUserId подстрахован таймаутом внутри */ }
+  try {
+    profile = load('profile', {}) || {}
+    if (profile.temperament && TYPES[profile.temperament]) applyTheme(profile.temperament)
+  } catch (e) {
+    // Повреждённые данные от старой версии приложения — начинаем с чистого листа,
+    // а не зависаем на заставке навсегда
+    localStorage.removeItem('yalla_profile')
+    profile = {}
+  }
 
-try {
-  if (profile.onboarding_done) {
-    showScreen('screen-splash')
-    setTimeout(() => {
-      document.getElementById('bottom-nav').style.display = 'flex'
-      goTo('screen-home')
-    }, 1000)
-  } else if (profile.temperament) {
-    showScreen('screen-splash')
-    setTimeout(() => showScreen('screen-onboarding'), 1000)
-  } else {
-    showScreen('screen-splash')
+  try { captureSource() } catch (e) { /* не критично для запуска */ }
+
+  try {
+    await initVkUser()
+    await restoreFromServerIfNeeded()
+    syncProfileToApi()
+  } catch (e) { /* не критично — vkUserId подстрахован таймаутом внутри initVkUser */ }
+
+  try {
+    if (profile.onboarding_done) {
+      setTimeout(() => {
+        document.getElementById('bottom-nav').style.display = 'flex'
+        goTo('screen-home')
+      }, 1000)
+    } else if (profile.temperament) {
+      setTimeout(() => showScreen('screen-onboarding'), 1000)
+    } else {
+      setTimeout(startLongTest, 1000)
+    }
+  } catch (e) {
+    // Последняя страховка: если даже это упало — сбрасываем всё и стартуем тест заново
+    localStorage.removeItem('yalla_profile')
     setTimeout(startLongTest, 1000)
   }
-} catch (e) {
-  // Последняя страховка: если даже это упало — сбрасываем всё и стартуем тест заново
-  localStorage.removeItem('yalla_profile')
-  showScreen('screen-splash')
-  setTimeout(startLongTest, 1000)
 }
+
+boot()
 </script>
 </body>
 </html>
