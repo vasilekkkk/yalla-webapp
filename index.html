@@ -745,6 +745,7 @@ function ymGoal(name, params) {
 const API_BASE_URL = 'https://alla-vasilisaelisvasilisa.amvera.io'
 
 let vkUserId = null
+let isRealVkUser = false
 
 async function initVkUser() {
   if (window.vkBridge) {
@@ -752,6 +753,7 @@ async function initVkUser() {
       const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1500))
       const info = await Promise.race([vkBridge.send('VKWebAppGetUserInfo'), timeout])
       vkUserId = info.id
+      isRealVkUser = true
       const profile = load('profile', {})
       let profileChanged = false
       if (!profile.name) {
@@ -826,6 +828,7 @@ async function syncProfileToApi() {
       format: profile.format || null,
       time_pref: profile.time || null,
       avatar: load('avatar', null),
+      is_real_vk: isRealVkUser,
     }),
   })
 }
@@ -1623,9 +1626,21 @@ async function pollChat() {
   }
 }
 
-function maybeShowVkSuggest() {
+async function maybeShowVkSuggest() {
   if (chatVkSuggestShown || !currentChatPeerId || chatTotalCount < 3) return
   chatVkSuggestShown = true
+  // Проверяем, что у собеседника настоящий VK ID, а не тестовый локальный —
+  // иначе ссылка может случайно увести на профиль совершенно незнакомого человека
+  const data = await apiCall(`/api/profile?vk_user_id=${currentChatPeerId}`)
+  const peerIsReal = data && data.profile && data.profile.is_real_vk
+  if (!peerIsReal) {
+    document.getElementById('chat-vk-suggest').innerHTML = `
+      <div class="vk-suggest-banner">
+        <span>Вы уже неплохо пообщались! Продолжайте общение здесь, в приложении 🙂</span>
+      </div>
+    `
+    return
+  }
   document.getElementById('chat-vk-suggest').innerHTML = `
     <div class="vk-suggest-banner">
       <span>Вы уже неплохо пообщались! Теперь можно продолжить напрямую в ВК.</span>
@@ -1989,10 +2004,11 @@ let profile = {}
 
 async function restoreFromServerIfNeeded() {
   // localStorage внутри VK-вебвью (iframe на vk.com) — контекст третьей стороны,
-  // браузеры всё чаще стирают его там. Если локально профиль неполный, а у нас
-  // есть реальный vk_user_id — пробуем восстановить с сервера.
-  if (!vkUserId) return
-  if (profile.onboarding_done) return // локальные данные уже есть, ничего восстанавливать не нужно
+  // браузеры всё чаще стирают его там. Раньше восстановление пропускалось, если
+  // локально уже был пройден тест — но тогда один и тот же VK-аккаунт на двух
+  // устройствах никогда не сходился (разные цвета темперамента на телефоне и
+  // компьютере). Теперь при настоящем VK ID сервер — источник правды.
+  if (!vkUserId || !isRealVkUser) return
   const data = await apiCall(`/api/profile?vk_user_id=${vkUserId}`)
   if (!data) return
   const p = data.profile
