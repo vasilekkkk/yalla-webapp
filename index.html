@@ -1724,8 +1724,6 @@ function rerollRoute() {
 
 function renderRoute() {
   const r = getRoute()
-  const prof = load('profile', {})
-  showToast('DEBUG: вайб=' + prof.mood + ' время=' + prof.time + ' маршрут=' + r.id)
   currentRouteId = r.id
   const pointsHtml = r.points.map((pt, i) => `
     <div class="route-point"><b>${i + 1}. ${pt.name}</b> — ${pt.desc}</div>
