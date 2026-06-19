@@ -1892,13 +1892,14 @@ function retakeShortTest() {
 
 /* ---------- EARLY ACCESS ---------- */
 
-function earlyAccess() {
+async function earlyAccess() {
   save('early_access', true)
-  apiCall('/api/early-access', {
+  const result = await apiCall('/api/early-access', {
     method: 'POST',
     body: JSON.stringify({ vk_user_id: vkUserId }),
   })
-  alert('Записали! Сообщим при запуске 🎉')
+  if (!result) return // apiCall уже показал тост с причиной ошибки
+  showToast('Записали! Сообщим при запуске 🎉')
   ymGoal('early_access')
 }
 
