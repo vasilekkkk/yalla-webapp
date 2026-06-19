@@ -1147,7 +1147,6 @@ function onboardingNext() {
     save('profile', profile)
     const previousPlaceId = currentPlace ? currentPlace.id : null
     currentPlace = getNextPlace(previousPlaceId)
-    showToast('DEBUG: было ' + (previousPlaceId || '—') + ', стало ' + currentPlace.id)
     placesTabFormat = ''
     currentRouteId = null
     ymGoal('short_test_completed')
