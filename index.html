@@ -717,6 +717,15 @@
     </div>
   </div>
 
+  <!-- CONFIRM MODAL -->
+  <div id="confirm-modal-overlay" style="display:none; position:fixed; inset:0; background:rgba(14,56,120,0.4); z-index:100; align-items:flex-end; justify-content:center;">
+    <div class="modal-sheet">
+      <div class="modal-title" id="confirm-modal-text"></div>
+      <button class="btn-primary" style="background:#E24B4A;" onclick="confirmModalYes()">Да, удалить</button>
+      <button class="btn-secondary" style="margin-top:8px;" onclick="closeConfirmModal()">Отмена</button>
+    </div>
+  </div>
+
   <!-- TOAST -->
   <div id="toast"></div>
 
@@ -1867,15 +1876,38 @@ function onAvatarSelected(event) {
   reader.readAsDataURL(file)
 }
 
+let confirmModalAction = null
+
+function showConfirmModal(text, action) {
+  document.getElementById('confirm-modal-text').textContent = text
+  confirmModalAction = action
+  document.getElementById('confirm-modal-overlay').style.display = 'flex'
+}
+
+function closeConfirmModal() {
+  document.getElementById('confirm-modal-overlay').style.display = 'none'
+  confirmModalAction = null
+}
+
+function confirmModalYes() {
+  const action = confirmModalAction
+  closeConfirmModal()
+  if (action) action()
+}
+
 function resetEverything() {
-  if (!confirm('Удалить все твои данные в приложении (тесты, имя, фото, сохранённые места)? Это нельзя отменить.')) return
-  localStorage.removeItem('yalla_profile')
-  localStorage.removeItem('yalla_avatar')
-  localStorage.removeItem('yalla_seen')
-  localStorage.removeItem('yalla_saved')
-  localStorage.removeItem('yalla_early_access')
-  document.getElementById('bottom-nav').style.display = 'none'
-  location.reload()
+  showConfirmModal(
+    'Удалить все твои данные в приложении (тесты, имя, фото, сохранённые места)? Это нельзя отменить.',
+    () => {
+      localStorage.removeItem('yalla_profile')
+      localStorage.removeItem('yalla_avatar')
+      localStorage.removeItem('yalla_seen')
+      localStorage.removeItem('yalla_saved')
+      localStorage.removeItem('yalla_early_access')
+      document.getElementById('bottom-nav').style.display = 'none'
+      location.reload()
+    }
+  )
 }
 
 function retakeShortTest() {
