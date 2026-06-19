@@ -789,6 +789,18 @@ async function apiCall(path, options = {}) {
   }
 }
 
+function captureSource() {
+  // Метка источника передаётся через #метка в ссылке, например
+  // vk.com/app54641404#instagram — сохраняется один раз, при первом визите
+  const existing = load('source', null)
+  if (existing) return
+  const hash = location.hash.replace('#', '').trim()
+  if (!hash) return
+  save('source', hash)
+  if (window.ym) ym(109965863, 'params', { source: hash })
+  ymGoal('visit_source_' + hash)
+}
+
 async function syncProfileToApi() {
   if (!vkUserId) return
   const profile = load('profile', {})
@@ -799,6 +811,7 @@ async function syncProfileToApi() {
       name: profile.name || null,
       temperament: profile.temperament || null,
       axis_scores: profile.axisScores || null,
+      source: load('source', null),
     }),
   })
 }
@@ -1923,6 +1936,7 @@ async function submitSupport() {
 
 const profile = load('profile', {})
 if (profile.temperament) applyTheme(profile.temperament)
+captureSource()
 initVkUser().then(syncProfileToApi)
 if (profile.onboarding_done) {
   showScreen('screen-splash')
